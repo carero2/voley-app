@@ -1,15 +1,18 @@
 import { getData, sortedMatches, playerById, setsSummary } from '../store.js';
 import { POSITIONS, positionById } from '../actions.js';
-import { filterEvents, countsBy, metrics, teamSummary, pct } from '../stats.js';
+import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, pct } from '../stats.js';
+import { activePlayers } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
 
 const TABS = [
   { id: 'jugadores', label: 'Jugadores' },
-  { id: 'posiciones', label: 'Posiciones' },
+  { id: 'posiciones', label: 'Posición' },
+  { id: 'rotaciones', label: 'Rotación' },
+  { id: 'zonas', label: 'Zonas' },
   { id: 'partidos', label: 'Partidos' },
 ];
 
-let state = { tab: 'jugadores', matchId: '', set: '' };
+let state = { tab: 'jugadores', matchId: '', set: '', player: '' };
 
 export function renderStats(el, { query }) {
   if (query.m !== undefined) {
@@ -50,6 +53,8 @@ export function renderStats(el, { query }) {
         ? html`<p class="center muted">No hay acciones registradas todavía.</p>`
         : state.tab === 'jugadores' ? playersTab(events)
         : state.tab === 'posiciones' ? positionsTab(events)
+        : state.tab === 'rotaciones' ? rotationsTab(events)
+        : state.tab === 'zonas' ? zonesTab(events)
         : matchesTab(matches.filter((m) => !state.matchId || m.id === state.matchId))}
     </div>
   `;
@@ -62,6 +67,10 @@ export function renderStats(el, { query }) {
   });
   el.querySelector('#f-set').addEventListener('change', (e) => {
     state.set = e.target.value;
+    rerender();
+  });
+  el.querySelector('#f-player')?.addEventListener('change', (e) => {
+    state.player = e.target.value;
     rerender();
   });
   el.querySelectorAll('[data-tab]').forEach((b) =>
@@ -130,6 +139,103 @@ function positionsTab(events) {
   `;
 }
 
+// ---------- Pestaña Rotaciones ----------
+
+function rotationsTab(events) {
+  const rows = rotationStats(events);
+  const total = rows.reduce((a, r) => ({ recv: a.recv + r.recv, sideOut: a.sideOut + r.sideOut, serve: a.serve + r.serve, breaks: a.breaks + r.breaks }), { recv: 0, sideOut: 0, serve: 0, breaks: 0 });
+  if (total.recv + total.serve === 0) {
+    return html`<p class="center muted">Aún no hay puntos registrados con alineación (se registran al jugar con el campo).</p>`;
+  }
+  return html`
+    <section class="kpis">
+      ${kpi('Side-out', pct(total.recv ? total.sideOut / total.recv : null), `${total.sideOut} de ${total.recv} recibiendo`)}
+      ${kpi('Break', pct(total.serve ? total.breaks / total.serve : null), `${total.breaks} de ${total.serve} sacando`)}
+    </section>
+    <section class="card">
+      <h2>Side-out por rotación</h2>
+      ${barChart(rows.map((r) => ({
+        label: `R${r.rot}`,
+        value: r.recv ? Math.round((r.sideOut / r.recv) * 100) : 0,
+        suffix: '%',
+        detail: `${r.sideOut} de ${r.recv} puntos recibiendo`,
+      })), 100)}
+    </section>
+    <section class="card">
+      <h2>Detalle por rotación <span class="muted small">(R = zona del colocador)</span></h2>
+      <div class="table-wrap">
+        <table class="stats-table">
+          <thead><tr>
+            <th class="sticky-col">Rot.</th>
+            <th>Recibiendo<br><small>ganados/jugados</small></th><th>Side-out</th>
+            <th>Sacando<br><small>ganados/jugados</small></th><th>Break</th>
+            <th>Balance</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => html`
+              <tr>
+                <th class="sticky-col" scope="row"><b>R${r.rot}</b></th>
+                <td>${r.sideOut}/${r.recv}</td>
+                <td>${pct(r.recv ? r.sideOut / r.recv : null)}</td>
+                <td>${r.breaks}/${r.serve}</td>
+                <td>${pct(r.serve ? r.breaks / r.serve : null)}</td>
+                <td class="${r.won - r.lost > 0 ? 'good' : r.won - r.lost < 0 ? 'bad' : ''}">${r.won - r.lost > 0 ? '+' : ''}${r.won - r.lost}</td>
+              </tr>`)}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small legend">Side-out = puntos ganados cuando saca el rival · Break = puntos ganados con nuestro saque.</p>
+    </section>
+  `;
+}
+
+// ---------- Pestaña Zonas ----------
+
+const OUR_ORDER = [4, 3, 2, 5, 6, 1];
+const RIVAL_ORDER = [1, 6, 5, 2, 3, 4];
+
+function zonesTab(allEvents) {
+  const players = activePlayers();
+  const events = state.player ? allEvents.filter((e) => e.playerId === state.player) : allEvents;
+  return html`
+    <select id="f-player" aria-label="Jugador">
+      <option value="">Todo el equipo</option>
+      ${players.map((p) => html`<option value="${p.id}" ${p.id === state.player ? 'selected' : ''}>${p.number} · ${p.name}</option>`)}
+    </select>
+    <div class="zone-cards">
+      ${zoneCard('Ataque · zona de origen', zoneStats(events, 'ataque'), OUR_ORDER, 'puntos')}
+      ${zoneCard('Ataque · destino en campo rival', zoneStats(events, 'ataque', 'zoneTo'), RIVAL_ORDER, 'puntos')}
+      ${zoneCard('Recepción · zona', zoneStats(events, 'recepcion'), OUR_ORDER, 'positivas')}
+      ${zoneCard('Saque · destino en campo rival', zoneStats(events, 'saque', 'zoneTo'), RIVAL_ORDER, 'aces')}
+    </div>
+    <p class="muted small legend">Cada zona muestra el total de acciones; debajo, cuántas fueron buenas (puntos, aces o recepciones positivas). Cuanto más intenso el color, más acciones.</p>
+  `;
+}
+
+function zoneCard(title, zones, order, goodLabel) {
+  const max = Math.max(1, ...Object.values(zones).map((z) => z.total));
+  const rival = order === RIVAL_ORDER;
+  return html`
+    <section class="card">
+      <h2>${title}</h2>
+      ${rival ? '' : html`<div class="mini-net">red</div>`}
+      <div class="mini-court">
+        ${order.map((zn) => {
+          const z = zones[zn];
+          const share = z.total ? 12 + Math.round((z.total / max) * 48) : 0;
+          return html`
+            <div class="mini-zone" style="--heat:${share}%" title="Zona ${zn}: ${z.total} acciones, ${z.good} ${goodLabel}, ${z.bad} errores">
+              <span class="zone-num">${zn}</span>
+              <span class="mz-total">${z.total}</span>
+              <span class="mz-sub">${z.total ? `${z.good} ${goodLabel} · ${pct(z.good / z.total)}` : ''}</span>
+            </div>`;
+        })}
+      </div>
+      ${rival ? html`<div class="mini-net">red</div>` : ''}
+    </section>
+  `;
+}
+
 // ---------- Pestaña Partidos ----------
 
 function matchesTab(matches) {
@@ -181,17 +287,17 @@ function kpi(label, value, sub) {
 }
 
 // Gráfico de barras horizontales de una sola serie (sin librerías).
-function barChart(items) {
-  const max = Math.max(1, ...items.map((i) => i.value));
+function barChart(items, fixedMax = null) {
+  const max = fixedMax ?? Math.max(1, ...items.map((i) => i.value));
   return html`
     <div class="bars" role="table">
       ${items.map((i) => html`
-        <div class="bar-row" role="row" title="${i.label}: ${i.value} puntos · ${i.detail}" tabindex="0">
+        <div class="bar-row" role="row" title="${i.label}: ${i.value}${i.suffix ?? ' puntos'} · ${i.detail}" tabindex="0">
           <span class="bar-label" role="cell">${i.label}</span>
           <span class="bar-track" role="cell">
             <span class="bar-fill" style="width:${(i.value / max) * 100}%"></span>
           </span>
-          <span class="bar-value" role="cell">${i.value}</span>
+          <span class="bar-value" role="cell">${i.value}${i.suffix ?? ''}</span>
           <span class="bar-tip">${i.detail}</span>
         </div>
       `)}

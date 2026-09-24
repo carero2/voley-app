@@ -7,15 +7,21 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
 ## Funcionalidades
 
 - **Plantilla**: jugadores con dorsal, nombre y posición (colocador, opuesto, receptor, central, líbero).
-- **Partido en directo**:
-  - Marcador automático, cambio de set al llegar a 25 (15 en el tie-break) con 2 de diferencia.
-  - Toca un jugador → elige la acción: saque, recepción, ataque, bloqueo, defensa o colocación, cada una con su resultado.
-  - Botones de equipo: *Error rival* (punto para nosotros) y *Punto rival*.
-  - Botón de deshacer (también reabre un set cerrado por error).
-  - Convocados por partido, partidos al mejor de 3 o de 5.
+- **Alineación al inicio de cada set**:
+  - Sistema de juego: **5-1** (por defecto), 4-2, 6-2 o colocación manual por zonas.
+  - Jugador para cada rol (colocador, opuesto, receptores, centrales y líbero), rotación de salida (R1–R6 = zona del colocador) y equipo que saca.
+  - Vista previa del campo antes de empezar. En el set siguiente se propone la misma alineación con el saque alternado.
+- **Partido en directo, siguiendo la secuencia del juego**:
+  - Los jugadores aparecen sobre un campo de voley en sus zonas (1–6); el líbero entra y sale solo por los centrales.
+  - La app propone la siguiente acción: saque → defensa… o recepción → colocación → ataque → defensa… Se pueden saltar pasos y cerrar el punto en cualquier momento (*Error rival* / *Punto rival*).
+  - Se guarda la zona de origen de cada acción y, tocando el campo rival, el destino del saque y del ataque.
+  - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
+  - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
 - **Estadísticas** (filtrables por partido y set):
   - Por jugador: puntos, puntos cedidos, saque (aces/errores), recepción positiva y perfecta, eficacia de ataque, bloqueos y defensas. Toca un jugador para ver su ficha completa.
   - Por posición.
+  - Por rotación: side-out (puntos ganados recibiendo) y break (puntos ganados sacando) en R1–R6.
+  - Por zonas: mapas de ataque (origen y destino), recepción y destino del saque, filtrables por jugador.
   - Por partido: resultado por sets, puntos propios, errores rivales y propios.
 - **Datos**: exportación e importación JSON (copia de seguridad), exportación CSV para Excel.
 - Funciona **sin conexión** (service worker) y se puede instalar en la pantalla de inicio.
@@ -54,6 +60,7 @@ css/styles.css        Estilos (móvil primero, tablet a partir de 700px)
 js/app.js             Enrutado por hash
 js/actions.js         Posiciones, fundamentos y resultados
 js/store.js           Estado y persistencia
+js/rally.js           Sistemas, rotaciones, líbero y fases de cada punto
 js/stats.js           Cálculo de estadísticas
 js/ui.js              Utilidades (plantillas HTML, hojas, avisos)
 js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, datos

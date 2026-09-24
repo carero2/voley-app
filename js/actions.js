@@ -58,24 +58,28 @@ export const SKILLS = [
   },
 ];
 
-// Acciones de equipo sin jugador asociado.
+// Acciones sin jugador asociado.
 export const TEAM_EVENTS = {
   errorRival: { skill: 'rival', result: 'error', point: 'us', label: 'Error rival' },
   puntoRival: { skill: 'rival', result: 'punto', point: 'them', label: 'Punto rival' },
+  errorSaqueRival: { skill: 'rival', result: 'saque_error', point: 'us', label: 'Error de saque rival' },
+  aceRival: { skill: 'rival', result: 'ace', point: 'them', label: 'Ace rival' },
+  freeBall: { skill: 'equipo', result: 'free', point: null, label: 'Pasa sin ataque' },
 };
 
 export const skillById = (id) => SKILLS.find((s) => s.id === id);
 export const positionById = (id) => POSITIONS.find((p) => p.id === id);
 
 export function resultDef(skillId, resultId) {
-  if (skillId === 'rival') {
-    return Object.values(TEAM_EVENTS).find((e) => e.result === resultId);
+  if (skillId === 'rival' || skillId === 'equipo') {
+    return Object.values(TEAM_EVENTS).find((e) => e.skill === skillId && e.result === resultId);
   }
   return skillById(skillId)?.results.find((r) => r.id === resultId);
 }
 
 export function describeEvent(ev) {
-  if (ev.skill === 'rival') return resultDef('rival', ev.result)?.label ?? 'Rival';
+  if (ev.skill === 'rival' || ev.skill === 'equipo') return resultDef(ev.skill, ev.result)?.label ?? ev.result;
+  if (ev.skill === 'cambio') return 'Cambio';
   const skill = skillById(ev.skill);
   const res = resultDef(ev.skill, ev.result);
   return `${skill?.label ?? ev.skill} · ${res?.label ?? ev.result}`;

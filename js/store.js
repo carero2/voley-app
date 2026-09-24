@@ -4,6 +4,7 @@
 // usando `exportData()` / `importData()`; el resto de la app no cambia.
 
 import { resultDef } from './actions.js';
+import { setState, rotationOf, zoneOfPlayer } from './rally.js';
 
 const STORAGE_KEY = 'voley-app:v1';
 const SCHEMA_VERSION = 1;
@@ -110,6 +111,7 @@ export function createMatch({ opponent, date, place, bestOf, roster }) {
     roster,
     currentSet: 1,
     status: 'live',
+    sets: {},
     events: [],
   };
   data.matches.push(match);
@@ -127,14 +129,21 @@ export function deleteMatch(id) {
   persist();
 }
 
-export function addEvent(matchId, { playerId = null, skill, result }) {
+// Registra una acción con su contexto (punto del set, rotación, quién sacaba y zonas).
+export function addEvent(matchId, { playerId = null, skill, result, zoneTo = null }) {
   const match = matchById(matchId);
   const def = resultDef(skill, result);
+  const st = setState(match, match.currentSet);
   const ev = {
     id: uid(),
     t: Date.now(),
     set: match.currentSet,
+    rally: st.rally,
+    serving: st.serving,
+    rot: rotationOf(st),
     playerId,
+    zone: st.setup && playerId ? zoneOfPlayer(st, playerId) : null,
+    zoneTo,
     skill,
     result,
     point: def?.point ?? null,
@@ -142,6 +151,35 @@ export function addEvent(matchId, { playerId = null, skill, result }) {
   match.events.push(ev);
   persist();
   return ev;
+}
+
+export function setLineup(matchId, setNum, setup) {
+  const match = matchById(matchId);
+  match.sets = { ...(match.sets || {}), [setNum]: setup };
+  recomputeContext(match, setNum);
+  persist();
+}
+
+// Recalcula rotación, zona, saque y número de punto de las acciones de un set
+// (necesario si se corrige la alineación con el set ya empezado).
+function recomputeContext(match, setNum) {
+  match.events.forEach((ev, i) => {
+    if (ev.set !== setNum || ev.skill === 'cambio') return;
+    const st = setState({ ...match, events: match.events.slice(0, i) }, setNum);
+    Object.assign(ev, {
+      rally: st.rally,
+      serving: st.serving,
+      rot: rotationOf(st),
+      zone: ev.playerId ? zoneOfPlayer(st, ev.playerId) : null,
+    });
+  });
+}
+
+// Cambio de jugador: `slot` es la posición en la rotación que pasa a ocupar `playerId`.
+export function substitute(matchId, slot, playerId, outId) {
+  const match = matchById(matchId);
+  match.events.push({ id: uid(), t: Date.now(), set: match.currentSet, skill: 'cambio', slot, playerId, out: outId, point: null });
+  persist();
 }
 
 export function undoLastEvent(matchId) {

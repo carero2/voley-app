@@ -238,27 +238,78 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 .banner-good { background: var(--good-bg); color: var(--good); }
 .banner-bad { background: var(--error-bg); color: var(--error); }
 
-.team-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-.player-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 10px;
+/* Campo */
+.court {
+  --court: #e9895a;
+  --court-line: #ffffff;
+  display: flex; flex-direction: column;
+  background: var(--court); padding: 8px; border-radius: var(--radius);
+  max-width: 520px; margin: 0 auto; width: 100%;
 }
-.player-btn {
-  appearance: none; font: inherit; color: inherit; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  min-height: 96px; padding: 10px 6px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  touch-action: manipulation;
+.half { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; position: relative; }
+.half.rival { opacity: .9; }
+.half-label {
+  grid-column: 1 / -1; text-align: center; font-size: .75rem; font-weight: 700;
+  color: #fff; text-transform: uppercase; letter-spacing: .04em; padding-bottom: 2px;
 }
-.player-btn:active { transform: scale(.96); background: var(--surface-2); }
-.pb-number { font-size: 1.9rem; font-weight: 800; line-height: 1; color: var(--primary); }
-.pb-name { font-size: .85rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.net { height: 6px; margin: 6px -8px; background: repeating-linear-gradient(90deg, #fff 0 6px, #2b2b2b 6px 10px); }
+.zone {
+  appearance: none; font: inherit; color: var(--text); position: relative;
+  border: 2px solid transparent; border-radius: 10px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  touch-action: manipulation; padding: 4px;
+}
+.zone:disabled { cursor: default; }
+.zone-num { position: absolute; top: 3px; left: 6px; font-size: .7rem; font-weight: 700; opacity: .6; }
+.rival-zone { min-height: 44px; background: rgb(255 255 255 / 22%); color: #fff; }
+.rival-zone .zone-num { position: static; font-size: .9rem; opacity: .9; }
+.rival.is-selecting .rival-zone { background: rgb(255 255 255 / 38%); border-color: rgb(255 255 255 / 60%); }
+.rival-zone.selected { background: var(--primary) !important; border-color: #fff !important; }
+.player-zone { min-height: 78px; background: var(--surface); box-shadow: var(--shadow); }
+.court.is-selecting .player-zone:not(:disabled) { border-color: var(--primary); }
+.player-zone:active:not(:disabled) { transform: scale(.96); }
+.player-zone.selected { background: var(--primary); color: var(--primary-ink); border-color: #fff; }
+.player-zone.libero { background: #ffe9a8; color: #3b2d00; }
+.player-zone.libero.selected { background: var(--primary); color: var(--primary-ink); }
+.pz-number { font-size: 1.7rem; font-weight: 800; line-height: 1; }
+.pz-name { font-size: .78rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.serve-ball { position: absolute; top: 2px; right: 4px; font-size: .9rem; }
 
-.log-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.log-head h2 { margin: 0; }
+/* Panel de acciones */
+.panel { display: flex; flex-direction: column; gap: 10px; }
+.prompt { display: flex; flex-direction: column; gap: 4px; }
+.phase-tag {
+  align-self: flex-start; background: var(--primary); color: var(--primary-ink);
+  font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  padding: 3px 10px; border-radius: 999px;
+}
+.prompt-text { font-weight: 600; }
+.result-row { display: flex; flex-direction: column; gap: 4px; }
+.result-row .skill-results .btn { min-height: 56px; }
+.shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.sb-rot { font-size: .8rem; font-weight: 700; background: rgb(255 255 255 / 20%); padding: 1px 8px; border-radius: 999px; }
+.sb-prev { grid-column: 1 / -1; text-align: center; }
+
+/* Alineación */
+.role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
+
+/* Mapas de zonas (estadísticas) */
+.zone-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.mini-court { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.mini-zone {
+  position: relative; min-height: 70px; border-radius: 8px;
+  background: color-mix(in srgb, var(--series-1) var(--heat), var(--surface-2));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;
+}
+.mz-total { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mz-sub { font-size: .7rem; color: var(--text); text-align: center; }
+.mini-net {
+  text-align: center; font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--text-2); border-top: 3px dashed var(--border); margin: 6px 0; padding-top: 2px;
+}
+
+.log h2 { margin-bottom: 8px; }
 .log-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .log-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
 .log-item:last-child { border-bottom: 0; }
@@ -285,9 +336,13 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 
 /* ---------- Estadísticas ---------- */
 .filters { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
-.tabs { display: flex; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px; }
+.tabs {
+  display: flex; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 1; appearance: none; border: 0; background: transparent; color: var(--text-2);
+  flex: 1 0 auto; padding: 0 12px; white-space: nowrap; appearance: none; border: 0; background: transparent; color: var(--text-2);
   font: inherit; font-weight: 600; min-height: 40px; border-radius: 9px; cursor: pointer;
 }
 .tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
@@ -386,9 +441,9 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 /* ---------- Tablet ---------- */
 @media (min-width: 700px) {
   h1 { font-size: 1.8rem; }
-  .player-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
-  .player-btn { min-height: 120px; }
-  .pb-number { font-size: 2.4rem; }
+  .player-zone { min-height: 96px; }
+  .pz-number { font-size: 2.2rem; }
+  .rival-zone { min-height: 56px; }
   .sb-score { font-size: 4rem; }
   .sheet {
     left: 50%; right: auto; bottom: auto; top: 50%;
@@ -403,21 +458,23 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
 
 @media (min-width: 1000px) {
-  /* Tablet en horizontal: marcador y acciones de equipo a la izquierda, jugadores a la derecha */
+  /* Tablet en horizontal: campo a la izquierda, marcador y acciones a la derecha */
   body.is-live .container {
     max-width: 1200px;
     display: grid;
-    grid-template-columns: 340px 1fr;
-    grid-template-areas: "head head" "score grid" "banner grid" "team grid" "log grid";
-    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-areas: "head head" "court score" "court banner" "court panel" "log panel";
+    /* La fila flexible absorbe la altura del campo para que el panel quede pegado al marcador */
+    grid-template-rows: auto auto auto 1fr auto;
     align-items: start;
   }
   body.is-live .live-head { grid-area: head; }
   body.is-live .scoreboard { grid-area: score; position: static; margin: 0; }
   body.is-live .banner { grid-area: banner; }
-  body.is-live .team-actions { grid-area: team; }
-  body.is-live .player-grid { grid-area: grid; }
+  body.is-live .court-wrap { grid-area: court; }
+  body.is-live .panel { grid-area: panel; }
   body.is-live .log { grid-area: log; }
+  body.is-live .court { max-width: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -23,11 +23,10 @@ export function countsBy(events, keyFn) {
   for (const e of events) {
     if (!e.playerId || e.skill === 'rival') continue;
     const key = keyFn(e);
-    if (key == null) continue;
+    if (key == null || !SKILLS.some((s) => s.id === e.skill)) continue;
     if (!groups.has(key)) groups.set(key, { counts: emptyCounts(), matches: new Set() });
     const g = groups.get(key);
     const c = g.counts[e.skill];
-    if (!c) continue;
     c[e.result] = (c[e.result] || 0) + 1;
     c.total += 1;
     g.matches.add(e.matchId);
@@ -87,6 +86,39 @@ export function teamSummary(events) {
     }
   }
   return s;
+}
+
+// Puntos jugados agrupados por rotación: side-out (recibiendo) y break (sacando).
+export function rotationStats(events) {
+  const rows = new Map([1, 2, 3, 4, 5, 6].map((r) => [r, { rot: r, recv: 0, sideOut: 0, serve: 0, breaks: 0, won: 0, lost: 0 }]));
+  for (const e of events) {
+    if (!e.point || !e.rot || !e.serving) continue;
+    const r = rows.get(e.rot);
+    if (e.point === 'us') r.won++; else r.lost++;
+    if (e.serving === 'them') {
+      r.recv++;
+      if (e.point === 'us') r.sideOut++;
+    } else {
+      r.serve++;
+      if (e.point === 'us') r.breaks++;
+    }
+  }
+  return [...rows.values()];
+}
+
+// Recuento por zona (1..6) de un fundamento, usando la zona de origen o la de destino.
+export function zoneStats(events, skill, field = 'zone') {
+  const zones = Object.fromEntries([1, 2, 3, 4, 5, 6].map((z) => [z, { total: 0, good: 0, bad: 0 }]));
+  const GOOD = { ataque: ['punto'], saque: ['ace'], recepcion: ['perfecta', 'buena'] };
+  const BAD = { ataque: ['error', 'bloqueado'], saque: ['error'], recepcion: ['error', 'mala'] };
+  for (const e of events) {
+    if (e.skill !== skill || !e[field]) continue;
+    const z = zones[e[field]];
+    z.total++;
+    if (GOOD[skill]?.includes(e.result)) z.good++;
+    if (BAD[skill]?.includes(e.result)) z.bad++;
+  }
+  return zones;
 }
 
 export const pct = (v) => (v == null ? '–' : `${Math.round(v * 100)}%`);
