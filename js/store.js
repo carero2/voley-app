@@ -4,7 +4,7 @@
 // usando `exportData()` / `importData()`; el resto de la app no cambia.
 
 import { resultDef } from './actions.js';
-import { setState, rotationOf, zoneOfPlayer } from './rally.js';
+import { setState, rotationOf, tacticalZone } from './rally.js';
 
 const STORAGE_KEY = 'voley-app:v1';
 const SCHEMA_VERSION = 1;
@@ -14,6 +14,7 @@ const emptyData = () => ({
   team: { name: 'Mi equipo' },
   players: [],
   matches: [],
+  rivals: {},
 });
 
 let data = load();
@@ -37,6 +38,7 @@ function normalize(d) {
     team: { ...base.team, ...(d.team || {}) },
     players: Array.isArray(d.players) ? d.players : [],
     matches: Array.isArray(d.matches) ? d.matches : [],
+    rivals: d.rivals && typeof d.rivals === 'object' ? d.rivals : {},
   };
 }
 
@@ -93,6 +95,23 @@ export function removePlayer(id) {
   persist();
 }
 
+// ---------- Plantillas rivales (se guardan por nombre de equipo y se reutilizan) ----------
+
+const rivalKey = (name) => name.trim().toLowerCase();
+
+export const rivalPlayers = (name) =>
+  [...(data.rivals[rivalKey(name)]?.players ?? [])].sort(byNumber);
+
+export const rivalPlayerById = (name, id) => rivalPlayers(name).find((p) => p.id === id);
+
+export function saveRivalPlayers(name, players) {
+  data.rivals[rivalKey(name)] = {
+    name: name.trim(),
+    players: players.map((p) => ({ id: p.id || uid(), number: String(p.number).trim(), name: p.name.trim() })),
+  };
+  persist();
+}
+
 // ---------- Partidos ----------
 
 export const matchById = (id) => data.matches.find((m) => m.id === id);
@@ -130,7 +149,9 @@ export function deleteMatch(id) {
 }
 
 // Registra una acción con su contexto (punto del set, rotación, quién sacaba y zonas).
-export function addEvent(matchId, { playerId = null, skill, result, zoneTo = null }) {
+export function addEvent(matchId, {
+  playerId = null, skill, result, zoneTo = null, rivalZone = null, rivalPlayerId = null, phase,
+}) {
   const match = matchById(matchId);
   const def = resultDef(skill, result);
   const st = setState(match, match.currentSet);
@@ -142,8 +163,10 @@ export function addEvent(matchId, { playerId = null, skill, result, zoneTo = nul
     serving: st.serving,
     rot: rotationOf(st),
     playerId,
-    zone: st.setup && playerId ? zoneOfPlayer(st, playerId) : null,
+    zone: st.setup && playerId ? tacticalZone(st, playerId, phase) : null,
     zoneTo,
+    rivalZone,
+    rivalPlayerId,
     skill,
     result,
     point: def?.point ?? null,
@@ -170,7 +193,7 @@ function recomputeContext(match, setNum) {
       rally: st.rally,
       serving: st.serving,
       rot: rotationOf(st),
-      zone: ev.playerId ? zoneOfPlayer(st, ev.playerId) : null,
+      zone: ev.playerId ? tacticalZone(st, ev.playerId) : null,
     });
   });
 }
@@ -270,6 +293,7 @@ export function importData(incoming, mode = 'merge') {
     };
     data.players = mergeById(data.players, src.players);
     data.matches = mergeById(data.matches, src.matches);
+    data.rivals = { ...data.rivals, ...src.rivals };
     if (data.team.name === 'Mi equipo') data.team = src.team;
   }
   persist();

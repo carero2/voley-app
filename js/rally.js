@@ -165,3 +165,54 @@ export const PHASES = {
   attack: { label: 'Ataque', skill: 'ataque' },
   defense: { label: 'Defensa / bloqueo', skill: null },
 };
+
+// ---------- Posiciones de juego ----------
+// Cada jugador se dibuja en unas coordenadas del medio campo propio (x: 0 izquierda → 100 derecha,
+// y: 0 red → 100 línea de fondo) y se le asigna la zona en la que realmente juega (`spot`).
+
+const LANE_X = { 4: 17, 5: 17, 3: 50, 6: 50, 2: 83, 1: 83 };
+const LANE = { 4: 0, 5: 0, 3: 1, 6: 1, 2: 2, 1: 2 };
+const Y = { front: 20, back: 70, net: 12, line: 58, deep: 88 };
+
+// Grupo de cada slot en 5-1 / 4-2 / 6-2: colocador u opuesto, receptor, central.
+const GROUP_OF_SLOT = ['so', 'rec', 'cen', 'so', 'rec', 'cen'];
+const PLAY_ZONE = { front: { rec: 4, cen: 3, so: 2 }, back: { rec: 6, cen: 5, so: 1 } };
+const RECEPTION_LINE = [5, 6, 1];
+
+// 'base' = rotación principal, 'reception' = recepción, 'play' = ataque y defensa.
+export function formationKind(st, phase) {
+  if (st.setup.system === 'manual' || phase === 'serve') return 'base';
+  return phase === 'reception' ? 'reception' : 'play';
+}
+
+export function formation(st, phase, kind = formationKind(st, phase)) {
+  const cells = courtLayout(st);
+  const place = (c, zone, y) => ({ ...c, spot: zone, x: LANE_X[zone], y: y ?? (isFront(zone) ? Y.front : Y.back) });
+
+  if (kind === 'base') return cells.map((c) => place(c, c.zone));
+
+  if (kind === 'play') {
+    // Delanteros: receptor en 4, central en 3, colocador/opuesto en 2.
+    // Zagueros: receptor en 6, líbero (o central) en 5, colocador/opuesto en 1.
+    return cells.map((c) => place(c, PLAY_ZONE[isFront(c.zone) ? 'front' : 'back'][GROUP_OF_SLOT[c.slot]]));
+  }
+
+  // Recepción: reciben los dos receptores y el líbero (sin líbero, el central zaguero).
+  // Se ordenan de izquierda a derecha según su carril; si comparten carril, el delantero va a la izquierda
+  // (p. ej. en R2 el receptor de zona 3 baja a cubrir la zona 5 del opuesto).
+  const hasLibero = cells.some((c) => c.libero);
+  const receives = (c) => GROUP_OF_SLOT[c.slot] === 'rec' || c.libero
+    || (!hasLibero && GROUP_OF_SLOT[c.slot] === 'cen' && !isFront(c.zone));
+  const receivers = cells.filter(receives)
+    .sort((a, b) => LANE[a.zone] - LANE[b.zone] || Number(isFront(b.zone)) - Number(isFront(a.zone)));
+  return cells.map((c) => {
+    const i = receivers.indexOf(c);
+    if (i >= 0) return place(c, RECEPTION_LINE[i], Y.line);
+    return place(c, c.zone, isFront(c.zone) ? Y.net : Y.deep);
+  });
+}
+
+// Zona en la que juega un jugador en la fase indicada.
+export function tacticalZone(st, playerId, phase = currentPhase(st)) {
+  return formation(st, phase).find((c) => c.playerId === playerId)?.spot ?? null;
+}

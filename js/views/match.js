@@ -1,11 +1,12 @@
 import {
   getData, activePlayers, playerById, matchById, createMatch, addEvent, undoLastEvent,
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
-  setLineup, substitute,
+  setLineup, substitute, rivalPlayers, rivalPlayerById, saveRivalPlayers,
 } from '../store.js';
 import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent } from '../actions.js';
 import {
   SYSTEMS, buildSetup, setState, courtLayout, rotationOf, currentPhase, suggestedSetter, PHASES,
+  formation, formationKind, isFront,
 } from '../rally.js';
 import { html, raw, openSheet, toast, vibrate, today, formatDate } from '../ui.js';
 
@@ -79,9 +80,13 @@ export function renderNewMatch(el) {
 // Estado de interfaz que no se guarda (selección en curso).
 let ui = freshUi();
 function freshUi(matchId = null) {
-  return { matchId, selected: null, zoneTo: null, phase: null, editLineup: false, draft: null };
+  return {
+    matchId, selected: null, rivalTap: null, rivalPlayer: null, phase: null, showBase: false,
+    editLineup: false, draft: null,
+  };
 }
-const clearSelection = () => Object.assign(ui, { selected: null, zoneTo: null, phase: null });
+const clearSelection = () =>
+  Object.assign(ui, { selected: null, rivalTap: null, rivalPlayer: null, phase: null, showBase: false });
 
 export function renderMatch(el, { id }) {
   const match = matchById(id);
@@ -158,7 +163,9 @@ function renderLineup(el, match, rerender) {
   const dupes = new Set(d.slots.filter((id, i) => id && d.slots.indexOf(id) !== i));
   const liberoClash = d.libero && d.slots.includes(d.libero);
   const valid = complete && dupes.size === 0 && !liberoClash;
-  const preview = valid ? courtLayout({ setup: draftSetup(d), rotations: 0, serving: d.serveFirst, slots: d.slots }) : null;
+  const previewSt = valid ? { setup: draftSetup(d), rotations: 0, serving: d.serveFirst, slots: d.slots } : null;
+  const preview = previewSt ? courtLayout(previewSt) : null;
+  const rivalCount = rivalPlayers(match.opponent).length;
   const hasEvents = match.events.some((e) => e.set === match.currentSet);
 
   const option = (p, current) =>
@@ -230,11 +237,20 @@ function renderLineup(el, match, rerender) {
 
     ${preview
       ? html`<section class="card">
-          <h2>Así empieza el set</h2>
-          ${courtHtml({ layout: preview, serving: d.serveFirst, opponent: match.opponent })}
+          <h2>Así empieza el set <span class="muted small">(rotación principal)</span></h2>
+          ${courtHtml({
+            cells: formation(previewSt, 'serve', 'base'),
+            serving: d.serveFirst,
+            server: d.serveFirst === 'us' ? preview[0].playerId : null,
+            opponent: match.opponent,
+            rivalLabel: d.serveFirst === 'them' ? 'saca' : '',
+          })}
         </section>`
       : html`<p class="muted center small">${dupes.size || liberoClash ? 'Hay jugadores repetidos.' : 'Completa los seis puestos para ver el campo.'}</p>`}
 
+    <button class="btn btn-block" id="rival-roster">
+      Plantilla de ${match.opponent} (opcional)${rivalCount ? ` · ${rivalCount} jugadores` : ''}
+    </button>
     <button class="btn btn-primary btn-block btn-lg" id="start" ${valid ? '' : 'disabled'}>
       ${ui.editLineup ? 'Guardar alineación' : `Empezar set ${match.currentSet}`}
     </button>
@@ -272,6 +288,7 @@ function renderLineup(el, match, rerender) {
     clearSelection();
     rerender();
   });
+  el.querySelector('#rival-roster').addEventListener('click', () => editRivalRoster(match, rerender));
   el.querySelector('#cancel-lineup')?.addEventListener('click', () => {
     ui.editLineup = false;
     ui.draft = null;
@@ -281,32 +298,36 @@ function renderLineup(el, match, rerender) {
 
 // ---------- Campo ----------
 
-// Nuestro campo visto desde el banquillo: delanteros (4-3-2) junto a la red, zagueros (5-6-1) abajo.
-// Campo rival visto desde nuestro lado: su zona 1 queda arriba a la izquierda.
+// Nuestro campo visto desde el banquillo: la red arriba, delanteros (4-3-2) junto a ella.
+// Campo rival visto desde nuestro lado: su zona 1 queda arriba a la izquierda y su zona 4 junto a la red a la derecha.
 const OUR_ORDER = [4, 3, 2, 5, 6, 1];
 const RIVAL_ORDER = [1, 6, 5, 2, 3, 4];
 
-function courtHtml({ layout, serving, opponent, selectable = false, selected = null, rivalSelectable = false, zoneTo = null }) {
+function courtHtml({
+  cells, serving, server = null, opponent, selectable = false, selected = null,
+  rivalSelectable = false, rivalLabel = '', rivalZone = null,
+}) {
   return html`
     <div class="court ${selectable ? 'is-selecting' : ''}">
       <div class="half rival ${rivalSelectable ? 'is-selecting' : ''}">
-        <span class="half-label">${opponent}${serving === 'them' ? ' · saca' : ''}</span>
+        <span class="half-label">${opponent}${rivalLabel ? ` · ${rivalLabel}` : ''}</span>
         ${RIVAL_ORDER.map((z) => html`
-          <button class="zone rival-zone ${zoneTo === z ? 'selected' : ''}" data-zone-to="${z}" ${rivalSelectable ? '' : 'disabled'} aria-label="Zona ${z} rival">
+          <button class="zone rival-zone ${rivalZone === z ? 'selected' : ''}" data-rival-zone="${z}" ${rivalSelectable ? '' : 'disabled'} aria-label="Zona ${z} rival">
             <span class="zone-num">${z}</span>
           </button>
         `)}
       </div>
       <div class="net" aria-hidden="true"></div>
       <div class="half ours">
-        ${OUR_ORDER.map((z) => {
-          const cell = layout[z - 1];
-          const p = playerById(cell.playerId);
-          const isServer = serving === 'us' && z === 1;
+        ${OUR_ORDER.map((z) => html`<span class="zone-bg" aria-hidden="true">${z}</span>`)}
+        <span class="attack-line" aria-hidden="true"></span>
+        ${cells.map((c) => {
+          const p = playerById(c.playerId);
+          const isServer = serving === 'us' && c.playerId === server;
           return html`
-            <button class="zone player-zone ${cell.libero ? 'libero' : ''} ${selected === cell.playerId ? 'selected' : ''}"
-              data-player="${cell.playerId}" ${selectable ? '' : 'disabled'}>
-              <span class="zone-num">${z}</span>
+            <button class="token ${c.libero ? 'libero' : ''} ${selected === c.playerId ? 'selected' : ''}"
+              style="left:${c.x}%;top:${c.y}%" data-player="${c.playerId}" ${selectable ? '' : 'disabled'}
+              aria-label="${p?.number ?? ''} ${p?.name ?? ''}, zona ${c.spot}">
               ${isServer ? html`<span class="serve-ball" title="Saca">🏐</span>` : ''}
               <span class="pz-number">${p?.number ?? '?'}</span>
               <span class="pz-name">${p?.name ?? ''}</span>
@@ -324,17 +345,23 @@ function renderLive(el, match, st, rerender) {
   const teamName = getData().team.name;
   const winner = setWinner(match, match.currentSet);
   const { sets, won, lost } = setsSummary(match);
-  const layout = courtLayout(st);
   const phase = ui.phase ?? currentPhase(st);
+  const naturalKind = formationKind(st, phase);
+  const kind = ui.showBase ? 'base' : naturalKind;
+  const cells = formation(st, phase, kind);
+  const played = formation(st, phase); // posiciones de juego (para saber quién está delante)
   const rot = rotationOf(st);
-  const server = st.serving === 'us' ? layout[0].playerId : null;
+  const server = st.serving === 'us' ? courtLayout(st)[0].playerId : null;
 
   if (phase === 'serve') ui.selected = server;
   else if (phase === 'set' && !ui.selected) ui.selected = suggestedSetter(st, posOf);
 
   const sel = ui.selected ? playerById(ui.selected) : null;
+  const selFront = isFront(played.find((c) => c.playerId === ui.selected)?.spot);
   const selectable = phase !== 'serve';
-  const rivalSelectable = phase === 'serve' || phase === 'attack';
+  const rivalSelectable = ['serve', 'attack', 'defense'].includes(phase);
+  const rivals = rivalPlayers(match.opponent);
+  const showRivals = rivals.length > 0 && (phase === 'reception' || phase === 'defense');
   const recent = match.events.filter((e) => e.set === match.currentSet).slice(-6).reverse();
 
   el.innerHTML = html`
@@ -368,7 +395,17 @@ function renderLive(el, match, st, rerender) {
       </div>` : ''}
 
     <section class="court-wrap">
-      ${courtHtml({ layout, serving: st.serving, opponent: match.opponent, selectable, selected: ui.selected, rivalSelectable, zoneTo: ui.zoneTo })}
+      ${courtHtml({
+        cells, serving: st.serving, server, opponent: match.opponent, selectable, selected: ui.selected,
+        rivalSelectable,
+        rivalLabel: phase === 'defense' ? '¿desde dónde ataca?' : phase === 'reception' ? 'saca' : rivalSelectable ? 'destino' : '',
+        rivalZone: ui.rivalTap,
+      })}
+      <div class="court-foot">
+        <span class="muted small">${FORMATION_LABEL[kind]}</span>
+        ${naturalKind !== 'base' ? html`
+          <button class="btn btn-small" id="toggle-base">${ui.showBase ? 'Mostrar posiciones de juego' : 'Mostrar rotación principal'}</button>` : ''}
+      </div>
     </section>
 
     <section class="panel">
@@ -376,11 +413,17 @@ function renderLive(el, match, st, rerender) {
         <span class="phase-tag">${PHASES[phase].label}</span>
         <span class="prompt-text">${promptText(phase, sel)}</span>
       </div>
-      ${raw(actionButtons(phase, Boolean(sel)))}
-      <div class="shortcuts">
-        <button class="btn tone-good" data-team="errorRival">＋ Error rival</button>
-        <button class="btn tone-error" data-team="puntoRival">− Punto rival</button>
-      </div>
+      ${showRivals ? html`
+        <div class="rival-pick">
+          <span class="small muted">${phase === 'reception' ? 'Saca' : 'Ataca'}:</span>
+          ${rivals.map((p) => html`<button class="chip-btn ${ui.rivalPlayer === p.id ? 'selected' : ''}" data-rival-player="${p.id}">${p.number}${p.name ? html` <small>${p.name}</small>` : ''}</button>`)}
+        </div>` : ''}
+      ${raw(actionButtons(phase, Boolean(sel), selFront))}
+      ${phase !== 'reception' ? html`
+        <div class="shortcuts">
+          <button class="btn tone-good" data-team="errorRival">＋ Error rival</button>
+          <button class="btn tone-error" data-team="puntoRival">− Punto rival</button>
+        </div>` : ''}
       <div class="shortcuts">
         <button class="btn" id="undo" ${match.events.length || match.currentSet > 1 ? '' : 'disabled'}>↶ Deshacer</button>
         <button class="btn" id="other" ${sel ? '' : 'disabled'}>Otra acción…</button>
@@ -396,7 +439,15 @@ function renderLive(el, match, st, rerender) {
 
   const commit = (skill, result, playerId = ui.selected) => {
     const before = rot;
-    const ev = addEvent(match.id, { playerId, skill, result, zoneTo: ui.zoneTo });
+    const ev = addEvent(match.id, {
+      playerId,
+      skill,
+      result,
+      phase,
+      zoneTo: phase === 'defense' ? null : ui.rivalTap,
+      rivalZone: phase === 'defense' ? ui.rivalTap : null,
+      rivalPlayerId: showRivals ? ui.rivalPlayer : null,
+    });
     vibrate();
     clearSelection();
     const after = rotationOf(setState(match, match.currentSet));
@@ -407,13 +458,17 @@ function renderLive(el, match, st, rerender) {
     rerender();
   };
 
-  el.querySelectorAll('.player-zone').forEach((b) => b.addEventListener('click', () => {
+  el.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', () => {
     ui.selected = ui.selected === b.dataset.player && phase !== 'set' ? null : b.dataset.player;
     rerender();
   }));
-  el.querySelectorAll('[data-zone-to]').forEach((b) => b.addEventListener('click', () => {
-    const z = Number(b.dataset.zoneTo);
-    ui.zoneTo = ui.zoneTo === z ? null : z;
+  el.querySelectorAll('[data-rival-zone]').forEach((b) => b.addEventListener('click', () => {
+    const z = Number(b.dataset.rivalZone);
+    ui.rivalTap = ui.rivalTap === z ? null : z;
+    rerender();
+  }));
+  el.querySelectorAll('[data-rival-player]').forEach((b) => b.addEventListener('click', () => {
+    ui.rivalPlayer = ui.rivalPlayer === b.dataset.rivalPlayer ? null : b.dataset.rivalPlayer;
     rerender();
   }));
   el.querySelectorAll('[data-skill]').forEach((b) => b.addEventListener('click', () => {
@@ -422,11 +477,16 @@ function renderLive(el, match, st, rerender) {
   }));
   el.querySelectorAll('[data-team]').forEach((b) => b.addEventListener('click', () => {
     const def = TEAM_EVENTS[b.dataset.team];
-    commit(def.skill, def.result, null);
+    // El FREE propio se asocia al jugador seleccionado, si lo hay.
+    commit(def.skill, def.result, b.dataset.team === 'freeBall' ? ui.selected : null);
   }));
   el.querySelector('[data-skip]')?.addEventListener('click', (e) => {
     ui.phase = e.currentTarget.dataset.skip;
     ui.selected = null;
+    rerender();
+  });
+  el.querySelector('#toggle-base')?.addEventListener('click', () => {
+    ui.showBase = !ui.showBase;
     rerender();
   });
   el.querySelector('#undo').addEventListener('click', () => {
@@ -446,6 +506,12 @@ function renderLive(el, match, st, rerender) {
   el.querySelector('#menu').addEventListener('click', () => openMatchMenu(match, st, rerender));
 }
 
+const FORMATION_LABEL = {
+  base: 'Rotación principal',
+  reception: 'Posiciones de recepción',
+  play: 'Posiciones de ataque / defensa',
+};
+
 function promptText(phase, sel) {
   const who = sel ? `${sel.number} ${sel.name}` : null;
   switch (phase) {
@@ -453,26 +519,29 @@ function promptText(phase, sel) {
     case 'reception': return who ? `Recibe ${who}. ¿Cómo ha sido?` : 'Saca el rival: toca al jugador que recibe.';
     case 'set': return who ? `Coloca ${who}. ¿Cómo ha sido?` : 'Toca al jugador que coloca.';
     case 'attack': return who ? `Ataca ${who}. Marca el destino (opcional) y el resultado.` : 'Toca al atacante y, si quieres, la zona de destino.';
-    default: return who ? `${who}: ¿bloqueo o defensa?` : 'Ataca el rival: toca a quien bloquea o defiende.';
+    default: return who
+      ? `${who}: ¿bloqueo o defensa? Marca también desde dónde ataca el rival (opcional).`
+      : 'Ataca el rival: marca desde dónde (opcional) y toca a quien bloquea o defiende.';
   }
 }
 
-function resultRow(skillId, enabled, label = null) {
+function resultRow(skillId, enabled, label = null, note = '') {
   const s = skillById(skillId);
   return `
     <div class="result-row">
-      ${label ? `<span class="skill-name">${label}</span>` : ''}
+      ${label ? `<span class="skill-name">${label}${note ? ` <small class="muted">${note}</small>` : ''}</span>` : ''}
       <div class="skill-results">
         ${s.results.map((r) => `<button class="btn tone-${r.tone}" data-skill="${s.id}" data-result="${r.id}" ${enabled ? '' : 'disabled'}>${r.label}</button>`).join('')}
       </div>
     </div>`;
 }
 
-function actionButtons(phase, hasSel) {
+function actionButtons(phase, hasSel, selFront) {
   const extra = (key) => `<button class="btn tone-${TEAM_EVENTS[key].point === 'us' ? 'good' : TEAM_EVENTS[key].point ? 'error' : 'neutral'}" data-team="${key}">${TEAM_EVENTS[key].label}</button>`;
   switch (phase) {
     case 'serve':
-      return resultRow('saque', hasSel);
+      return resultRow('saque', hasSel)
+        + '<p class="hint">Positivo: el rival recibe mal (sin ataque cómodo) · En juego: el rival recibe bien.</p>';
     case 'reception':
       return resultRow('recepcion', hasSel) + `<div class="shortcuts">${extra('errorSaqueRival')}${extra('aceRival')}</div>`;
     case 'set':
@@ -480,7 +549,9 @@ function actionButtons(phase, hasSel) {
     case 'attack':
       return resultRow('ataque', hasSel) + `<div class="shortcuts">${extra('freeBall')}</div>`;
     default:
-      return resultRow('bloqueo', hasSel, 'Bloqueo') + resultRow('defensa', hasSel, 'Defensa');
+      return resultRow('bloqueo', hasSel && selFront, 'Bloqueo', hasSel && !selFront ? '(solo delanteros)' : '')
+        + resultRow('defensa', hasSel, 'Defensa')
+        + `<div class="shortcuts">${extra('freeRival')}</div>`;
   }
 }
 
@@ -496,7 +567,13 @@ function logItem(ev, match) {
   }
   const tone = ev.point === 'us' ? 'good' : ev.point === 'them' ? 'error' : 'neutral';
   const running = scoreAt(match, ev);
-  const where = [ev.zone ? `Z${ev.zone}` : '', ev.zoneTo ? `→ Z${ev.zoneTo}` : ''].filter(Boolean).join(' ');
+  const rival = ev.rivalPlayerId ? rivalPlayerById(match.opponent, ev.rivalPlayerId) : null;
+  const where = [
+    ev.zone ? `Z${ev.zone}` : '',
+    ev.zoneTo ? `→ Z${ev.zoneTo}` : '',
+    ev.rivalZone ? `ataque rival Z${ev.rivalZone}` : '',
+    rival ? `rival ${rival.number}` : '',
+  ].filter(Boolean).join(' · ');
   return html`
     <li class="log-item">
       <span class="dot tone-${tone}"></span>
@@ -557,6 +634,7 @@ function openMatchMenu(match, st, rerender) {
       <button class="btn btn-block" id="m-lineup">Editar alineación${setStarted ? ' del set' : ''}</button>
       <button class="btn btn-block" id="m-close-set">Cerrar set ${match.currentSet} ahora</button>
       <button class="btn btn-block" id="m-roster">Cambiar convocados</button>
+      <button class="btn btn-block" id="m-rivals">Plantilla de ${match.opponent}</button>
       <a class="btn btn-block" href="#/estadisticas?m=${match.id}" data-close>Ver estadísticas</a>
       <button class="btn btn-block btn-danger" id="m-delete">Eliminar partido</button>
       <button class="btn btn-block btn-ghost" data-close>Cancelar</button>
@@ -585,6 +663,10 @@ function openMatchMenu(match, st, rerender) {
   sheet.root.querySelector('#m-roster').addEventListener('click', () => {
     sheet.close();
     editRoster(match, rerender);
+  });
+  sheet.root.querySelector('#m-rivals').addEventListener('click', () => {
+    sheet.close();
+    editRivalRoster(match, rerender);
   });
   sheet.root.querySelector('#m-delete').addEventListener('click', () => {
     if (!confirm('¿Eliminar este partido y todas sus acciones? No se puede deshacer.')) return;
@@ -624,6 +706,58 @@ function openSubstitution(match, st, rerender) {
       toast('Cambio registrado');
       rerender();
     }));
+  };
+  draw();
+}
+
+// Plantilla rival: se guarda por nombre del equipo y se reutiliza en los siguientes partidos.
+function editRivalRoster(match, rerender) {
+  let rows = rivalPlayers(match.opponent).map((p) => ({ ...p }));
+  if (rows.length === 0) rows = [{ number: '', name: '' }];
+  const draw = () => {
+    const sheet = openSheet(html`
+      <div class="sheet-title">
+        <h2 class="grow">Plantilla de ${match.opponent}</h2>
+        <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
+      </div>
+      <p class="muted small">Opcional. Sirve para anotar qué jugador rival saca o ataca. Se guarda para próximos partidos contra este equipo.</p>
+      <form id="rival-form" class="stack">
+        ${rows.map((r, i) => html`
+          <div class="form-row rival-row">
+            <input class="dorsal-field" name="number" data-i="${i}" inputmode="numeric" placeholder="Dorsal" value="${r.number}" />
+            <input class="grow" name="name" data-i="${i}" placeholder="Nombre (opcional)" value="${r.name}" autocomplete="off" />
+            <button type="button" class="btn btn-ghost" data-remove="${i}" aria-label="Quitar">✕</button>
+          </div>`)}
+        <button type="button" class="btn" id="add-rival">＋ Añadir jugador</button>
+        <div class="form-actions">
+          <button type="button" class="btn" data-close>Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    `.toString());
+    const form = sheet.root.querySelector('#rival-form');
+    const read = () => form.querySelectorAll('input').forEach((inp) => { rows[Number(inp.dataset.i)][inp.name] = inp.value; });
+    sheet.root.querySelector('#add-rival').addEventListener('click', () => {
+      read();
+      rows.push({ number: '', name: '' });
+      sheet.close();
+      draw();
+      [...document.querySelectorAll('.sheet .rival-row input[name=number]')].at(-1)?.focus();
+    });
+    sheet.root.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
+      read();
+      rows.splice(Number(b.dataset.remove), 1);
+      sheet.close();
+      draw();
+    }));
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      read();
+      saveRivalPlayers(match.opponent, rows.filter((r) => String(r.number).trim()));
+      sheet.close();
+      toast('Plantilla rival guardada');
+      rerender();
+    });
   };
   draw();
 }

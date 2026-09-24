@@ -265,15 +265,47 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 .rival-zone .zone-num { position: static; font-size: .9rem; opacity: .9; }
 .rival.is-selecting .rival-zone { background: rgb(255 255 255 / 38%); border-color: rgb(255 255 255 / 60%); }
 .rival-zone.selected { background: var(--primary) !important; border-color: #fff !important; }
-.player-zone { min-height: 78px; background: var(--surface); box-shadow: var(--shadow); }
-.court.is-selecting .player-zone:not(:disabled) { border-color: var(--primary); }
-.player-zone:active:not(:disabled) { transform: scale(.96); }
-.player-zone.selected { background: var(--primary); color: var(--primary-ink); border-color: #fff; }
-.player-zone.libero { background: #ffe9a8; color: #3b2d00; }
-.player-zone.libero.selected { background: var(--primary); color: var(--primary-ink); }
-.pz-number { font-size: 1.7rem; font-weight: 800; line-height: 1; }
-.pz-name { font-size: .78rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.serve-ball { position: absolute; top: 2px; right: 4px; font-size: .9rem; }
+/* Nuestro medio campo: fichas colocadas por coordenadas sobre las 6 zonas */
+.half.ours {
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 2fr; gap: 0;
+  aspect-ratio: 4 / 3; border: 2px solid var(--court-line); border-top: 0; border-radius: 0 0 6px 6px;
+}
+.zone-bg {
+  display: flex; align-items: flex-end; justify-content: flex-start; padding: 2px 6px;
+  font-size: .7rem; font-weight: 700; color: rgb(255 255 255 / 70%);
+  border: 1px dashed rgb(255 255 255 / 35%);
+}
+.attack-line { position: absolute; left: 0; right: 0; top: 33.3%; border-top: 2px solid var(--court-line); pointer-events: none; }
+.token {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 29%; min-height: 58px; padding: 4px;
+  appearance: none; font: inherit; color: var(--text); cursor: pointer;
+  background: var(--surface); border: 2px solid transparent; border-radius: 12px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: left .35s ease, top .35s ease; touch-action: manipulation; z-index: 1;
+}
+.token:disabled { cursor: default; }
+.court.is-selecting .token:not(:disabled) { border-color: var(--primary); }
+.token:active:not(:disabled) { transform: translate(-50%, -50%) scale(.95); }
+.token.selected { background: var(--primary); color: var(--primary-ink); border-color: #fff; z-index: 2; }
+.token.libero { background: #ffe9a8; color: #3b2d00; }
+.token.libero.selected { background: var(--primary); color: var(--primary-ink); }
+.pz-number { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.pz-name { font-size: .75rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.court-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.btn-small { min-height: 36px; padding: 6px 12px; font-size: .85rem; }
+.hint { margin: 0; font-size: .8rem; color: var(--text-2); }
+.rival-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip-btn {
+  appearance: none; font: inherit; font-weight: 700; cursor: pointer; color: var(--text);
+  min-height: 40px; min-width: 44px; padding: 6px 10px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.chip-btn small { font-weight: 400; }
+.chip-btn.selected { background: var(--error); border-color: var(--error); color: #fff; }
+.rival-row { align-items: center; flex-wrap: nowrap; }
+.rival-row .dorsal-field { width: 84px; }
+.serve-ball { position: absolute; top: -8px; right: -6px; font-size: 1rem; }
 
 /* Panel de acciones */
 .panel { display: flex; flex-direction: column; gap: 10px; }
@@ -441,8 +473,8 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 /* ---------- Tablet ---------- */
 @media (min-width: 700px) {
   h1 { font-size: 1.8rem; }
-  .player-zone { min-height: 96px; }
-  .pz-number { font-size: 2.2rem; }
+  .token { min-height: 76px; }
+  .pz-number { font-size: 2rem; }
   .rival-zone { min-height: 56px; }
   .sb-score { font-size: 4rem; }
   .sheet {

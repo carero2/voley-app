@@ -121,4 +121,55 @@ export function zoneStats(events, skill, field = 'zone') {
   return zones;
 }
 
+// Ganador de cada punto (clave partido-set-punto).
+function rallyWinners(events) {
+  const w = new Map();
+  for (const e of events) if (e.point && e.rally) w.set(`${e.matchId}|${e.set}|${e.rally}`, e.point);
+  return w;
+}
+
+// Ataque rival por zona de origen, bolas FREE (propias y rivales) y jugadores rivales.
+export function rivalStats(events) {
+  const winners = rallyWinners(events);
+  const rallyKey = (e) => `${e.matchId}|${e.set}|${e.rally}`;
+  const zoneMap = () => Object.fromEntries([1, 2, 3, 4, 5, 6].map((z) => [z, { total: 0, good: 0, bad: 0 }]));
+
+  // good = punto del rival, bad = punto nuestro (en ese mismo punto jugado).
+  const attack = zoneMap();
+  const free = {
+    us: { total: 0, won: 0, lost: 0, zones: zoneMap() },
+    them: { total: 0, won: 0, lost: 0, zones: zoneMap() },
+  };
+  const players = new Map();
+  const counted = new Set();
+
+  for (const e of events) {
+    const outcome = winners.get(rallyKey(e));
+    const isFree = e.result === 'free' && (e.skill === 'equipo' || e.skill === 'rival');
+    if (isFree) {
+      const f = free[e.skill === 'equipo' ? 'us' : 'them'];
+      f.total++;
+      if (outcome === 'us') f.won++; else if (outcome === 'them') f.lost++;
+      const z = e.skill === 'equipo' ? e.zoneTo : e.rivalZone;
+      if (z) {
+        f.zones[z].total++;
+        if (outcome === (e.skill === 'equipo' ? 'us' : 'them')) f.zones[z].good++;
+      }
+    } else if (e.rivalZone && !counted.has(e.id)) {
+      counted.add(e.id);
+      const z = attack[e.rivalZone];
+      z.total++;
+      if (outcome === 'them') z.good++; else if (outcome === 'us') z.bad++;
+    }
+    if (e.rivalPlayerId) {
+      if (!players.has(e.rivalPlayerId)) players.set(e.rivalPlayerId, { serves: 0, attacks: 0, points: 0, errors: 0 });
+      const p = players.get(e.rivalPlayerId);
+      const serve = e.serving === 'them' && (e.skill === 'recepcion' || ['ace', 'saque_error'].includes(e.result));
+      if (serve) p.serves++; else p.attacks++;
+      if (e.point === 'them') p.points++; else if (e.point === 'us') p.errors++;
+    }
+  }
+  return { attack, free, players };
+}
+
 export const pct = (v) => (v == null ? '–' : `${Math.round(v * 100)}%`);

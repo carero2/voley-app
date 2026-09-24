@@ -12,9 +12,12 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Jugador para cada rol (colocador, opuesto, receptores, centrales y líbero), rotación de salida (R1–R6 = zona del colocador) y equipo que saca.
   - Vista previa del campo antes de empezar. En el set siguiente se propone la misma alineación con el saque alternado.
 - **Partido en directo, siguiendo la secuencia del juego**:
-  - Los jugadores aparecen sobre un campo de voley en sus zonas (1–6); el líbero entra y sale solo por los centrales.
+  - Los jugadores aparecen sobre un campo de voley en su **posición real de juego**: rotación principal al sacar, posiciones de recepción (reciben los dos receptores y el líbero; p. ej. en R2 el receptor de zona 3 baja a cubrir la zona 5) y posiciones de ataque/defensa (delante: receptor en 4, central en 3, colocador/opuesto en 2; detrás: receptor en 6, líbero en 5, colocador/opuesto en 1). El botón *Mostrar rotación principal* enseña dónde están según la rotación.
+  - El líbero entra y sale solo por los centrales. Solo los delanteros pueden bloquear.
   - La app propone la siguiente acción: saque → defensa… o recepción → colocación → ataque → defensa… Se pueden saltar pasos y cerrar el punto en cualquier momento (*Error rival* / *Punto rival*).
-  - Se guarda la zona de origen de cada acción y, tocando el campo rival, el destino del saque y del ataque.
+  - Se guarda la zona en la que juega cada jugador y, tocando el campo rival, el destino del saque y del ataque, o desde dónde ataca el rival.
+  - Bolas **FREE** propias y del rival.
+  - Plantilla del rival opcional (se guarda por equipo) para anotar quién saca o ataca.
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
 - **Estadísticas** (filtrables por partido y set):
@@ -22,6 +25,7 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Por posición.
   - Por rotación: side-out (puntos ganados recibiendo) y break (puntos ganados sacando) en R1–R6.
   - Por zonas: mapas de ataque (origen y destino), recepción y destino del saque, filtrables por jugador.
+  - Rival: zonas de ataque rival, bolas FREE (propias y del rival) y cómo acabaron, y estadísticas por jugador rival.
   - Por partido: resultado por sets, puntos propios, errores rivales y propios.
 - **Datos**: exportación e importación JSON (copia de seguridad), exportación CSV para Excel.
 - Funciona **sin conexión** (service worker) y se puede instalar en la pantalla de inicio.

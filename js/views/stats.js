@@ -1,7 +1,7 @@
 import { getData, sortedMatches, playerById, setsSummary } from '../store.js';
 import { POSITIONS, positionById } from '../actions.js';
-import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, pct } from '../stats.js';
-import { activePlayers } from '../store.js';
+import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, pct } from '../stats.js';
+import { activePlayers, rivalPlayerById } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
 
 const TABS = [
@@ -9,6 +9,7 @@ const TABS = [
   { id: 'posiciones', label: 'Posición' },
   { id: 'rotaciones', label: 'Rotación' },
   { id: 'zonas', label: 'Zonas' },
+  { id: 'rival', label: 'Rival' },
   { id: 'partidos', label: 'Partidos' },
 ];
 
@@ -55,6 +56,7 @@ export function renderStats(el, { query }) {
         : state.tab === 'posiciones' ? positionsTab(events)
         : state.tab === 'rotaciones' ? rotationsTab(events)
         : state.tab === 'zonas' ? zonesTab(events)
+        : state.tab === 'rival' ? rivalTab(events, matches)
         : matchesTab(matches.filter((m) => !state.matchId || m.id === state.matchId))}
     </div>
   `;
@@ -236,6 +238,69 @@ function zoneCard(title, zones, order, goodLabel) {
   `;
 }
 
+// ---------- Pestaña Rival ----------
+
+function rivalTab(events, matches) {
+  const r = rivalStats(events);
+  const opponentOf = new Map(matches.map((m) => [m.id, m.opponent]));
+  const rivalRows = [...r.players].map(([id, s]) => {
+    const ev = events.find((e) => e.rivalPlayerId === id);
+    return { p: rivalPlayerById(opponentOf.get(ev?.matchId) ?? '', id), team: opponentOf.get(ev?.matchId), s };
+  }).filter((x) => x.p).sort((a, b) => b.s.points - a.s.points);
+  const freeRow = (label, f, mine) => html`
+    <tr>
+      <th class="sticky-col" scope="row">${label}</th>
+      <td>${f.total}</td>
+      <td>${f.won}</td>
+      <td>${f.lost}</td>
+      <td>${pct(f.total ? (mine ? f.won : f.lost) / f.total : null)}</td>
+    </tr>`;
+  return html`
+    <div class="zone-cards">
+      ${zoneCard('Ataque rival · zona de origen', r.attack, RIVAL_ORDER, 'pts. rival')}
+    </div>
+
+    <section class="card">
+      <h2>Bolas FREE</h2>
+      <div class="table-wrap">
+        <table class="stats-table">
+          <thead><tr>
+            <th class="sticky-col"></th><th>Total</th><th>Puntos nuestros</th><th>Puntos rival</th><th>Éxito<br><small>del que envía</small></th>
+          </tr></thead>
+          <tbody>
+            ${freeRow('FREE nuestras', r.free.us, true)}
+            ${freeRow('FREE del rival', r.free.them, false)}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small legend">Cuenta quién ganó el punto en el que se jugó la bola FREE.</p>
+    </section>
+
+    <div class="zone-cards">
+      ${zoneCard('FREE nuestras · destino', r.free.us.zones, RIVAL_ORDER, 'ganadas')}
+      ${zoneCard('FREE del rival · origen', r.free.them.zones, RIVAL_ORDER, 'pts. rival')}
+    </div>
+
+    ${rivalRows.length ? html`
+      <section class="card">
+        <h2>Jugadores rivales</h2>
+        <div class="table-wrap">
+          <table class="stats-table">
+            <thead><tr><th class="sticky-col"></th><th>Saques</th><th>Ataques</th><th>Puntos</th><th>Errores</th></tr></thead>
+            <tbody>
+              ${rivalRows.map(({ p, team, s }) => html`
+                <tr>
+                  <th class="sticky-col" scope="row"><b>${p.number}</b> ${p.name} ${state.matchId ? '' : html`<small class="muted">${team}</small>`}</th>
+                  <td>${s.serves}</td><td>${s.attacks}</td><td><b>${s.points}</b></td><td>${s.errors}</td>
+                </tr>`)}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted small legend">Solo acciones en las que se marcó el jugador rival.</p>
+      </section>` : html`<p class="muted small center">Añade la plantilla del rival en el partido para ver estadísticas por jugador rival.</p>`}
+  `;
+}
+
 // ---------- Pestaña Partidos ----------
 
 function matchesTab(matches) {
@@ -319,7 +384,7 @@ function statsTable(rows, clickable) {
             <th title="Recepción perfecta">Rec<br><small>perf%</small></th>
             <th title="Ataques: puntos / total">Ataque<br><small>P/T</small></th>
             <th title="Eficacia de ataque = (puntos − errores − bloqueados) / total">Ataque<br><small>efic.</small></th>
-            <th title="Bloqueos punto">Bloq</th>
+            <th title="Bloqueos punto (block)">Block</th>
             <th title="Defensas buenas / total">Def<br><small>B/T</small></th>
           </tr>
         </thead>
@@ -348,7 +413,7 @@ const effClass = (v) => (v == null ? '' : v >= 0.3 ? 'good' : v < 0.1 ? 'bad' : 
 
 function legend() {
   return html`<p class="muted small legend">
-    Pts = ace + ataque punto + bloqueo punto · Ced = errores que dan punto al rival ·
+    Pts = ace + ataque punto + block · Ced = errores que dan punto al rival ·
     Ef. ataque = (puntos − errores − bloqueados) / total.
   </p>`;
 }
@@ -383,7 +448,7 @@ function playerDetail(playerId, events) {
     ${block('Saque', [['Total', m.saque.total], ['Aces', m.saque.ace], ['Errores', m.saque.error], ['Eficacia', pct(m.saque.eff)]])}
     ${block('Recepción', [['Total', m.recepcion.total], ['Perfectas', m.recepcion.perfecta], ['Positiva', pct(m.recepcion.positive)], ['Errores', m.recepcion.error]])}
     ${block('Ataque', [['Total', m.ataque.total], ['Puntos', m.ataque.punto], ['Errores', m.ataque.error], ['Bloqueados', m.ataque.bloqueado], ['% Punto', pct(m.ataque.kill)], ['Eficacia', pct(m.ataque.eff)]])}
-    ${block('Bloqueo', [['Puntos', m.bloqueo.punto], ['Toques', m.bloqueo.toque], ['Errores', m.bloqueo.error]])}
+    ${block('Bloqueo', [['Block', m.bloqueo.punto], ['Toques', m.bloqueo.toque], ['Blockout', m.bloqueo.error]])}
     ${block('Defensa', [['Total', m.defensa.total], ['Buenas', m.defensa.buena], ['Errores', m.defensa.error]])}
     ${block('Colocación', [['Total', m.colocacion.total], ['Buenas', m.colocacion.buena], ['Errores', m.colocacion.error]])}
   `.toString());

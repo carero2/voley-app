@@ -36,10 +36,11 @@ export const SKILLS = [
     ],
   },
   {
+    // Se mantienen los ids ('punto', 'error') para no romper datos ya guardados.
     id: 'bloqueo', label: 'Bloqueo', results: [
-      { id: 'punto', label: 'Punto', tone: 'good', point: 'us' },
+      { id: 'punto', label: 'Block', tone: 'good', point: 'us' },
       { id: 'toque', label: 'Toque', tone: 'ok', point: null },
-      { id: 'error', label: 'Error', tone: 'error', point: 'them' },
+      { id: 'error', label: 'Blockout', tone: 'error', point: 'them' },
     ],
   },
   {
@@ -64,7 +65,8 @@ export const TEAM_EVENTS = {
   puntoRival: { skill: 'rival', result: 'punto', point: 'them', label: 'Punto rival' },
   errorSaqueRival: { skill: 'rival', result: 'saque_error', point: 'us', label: 'Error de saque rival' },
   aceRival: { skill: 'rival', result: 'ace', point: 'them', label: 'Ace rival' },
-  freeBall: { skill: 'equipo', result: 'free', point: null, label: 'Pasa sin ataque' },
+  freeBall: { skill: 'equipo', result: 'free', point: null, label: 'FREE' },
+  freeRival: { skill: 'rival', result: 'free', point: null, label: 'FREE rival' },
 };
 
 export const skillById = (id) => SKILLS.find((s) => s.id === id);
