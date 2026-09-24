@@ -1,0 +1,40 @@
+// Enrutado por hash (compatible con GitHub Pages, sin servidor).
+import { renderHome } from './views/home.js';
+import { renderTeam } from './views/team.js';
+import { renderNewMatch, renderMatch } from './views/match.js';
+import { renderStats } from './views/stats.js';
+import { renderData } from './views/data.js';
+
+const routes = [
+  { pattern: /^\/$/, view: renderHome, tab: 'partidos' },
+  { pattern: /^\/equipo$/, view: renderTeam, tab: 'equipo' },
+  { pattern: /^\/partido\/nuevo$/, view: renderNewMatch, tab: 'partidos' },
+  { pattern: /^\/partido\/(?<id>[\w-]+)$/, view: renderMatch, tab: 'partidos', live: true },
+  { pattern: /^\/estadisticas$/, view: renderStats, tab: 'estadisticas' },
+  { pattern: /^\/datos$/, view: renderData, tab: 'datos' },
+];
+
+const main = document.getElementById('app');
+
+function router() {
+  const hash = location.hash.slice(1) || '/';
+  const [path, qs = ''] = hash.split('?');
+  const query = Object.fromEntries(new URLSearchParams(qs));
+  const route = routes.find((r) => r.pattern.test(path)) ?? routes[0];
+  const params = { ...(path.match(route.pattern)?.groups ?? {}), query };
+
+  document.querySelectorAll('.tabbar a').forEach((a) =>
+    a.classList.toggle('active', a.dataset.tab === route.tab),
+  );
+  document.body.classList.toggle('is-live', Boolean(route.live));
+  document.getElementById('sheet-root').hidden = true;
+  route.view(main, params);
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener('hashchange', router);
+router();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW no registrado', err));
+}
