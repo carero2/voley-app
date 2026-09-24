@@ -6,7 +6,9 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
 
 ## Funcionalidades
 
-- **Plantilla**: jugadores con dorsal, nombre y posición (colocador, opuesto, receptor, central, líbero).
+- **Clubes**: si entrenas en varios clubes, cada uno tiene su propio equipo, jugadores, equipos rivales y partidos, sin mezclarse. Se cambia de club desde la barra superior.
+- **Club de prueba**: la primera vez (o si se borran todos los clubes) aparece un club de prueba, marcado como «PRUEBA», con jugadores y un rival de ejemplo.
+- **Plantilla**: jugadores con dorsal, nombre y posición (colocador, opuesto, receptor, central, líbero) y equipos rivales del club (con plantilla opcional).
 - **Alineación al inicio de cada set**:
   - Sistema de juego: **5-1** (por defecto), 4-2, 6-2 o colocación manual por zonas.
   - Jugador para cada rol (colocador, opuesto, receptores, centrales y líbero), rotación de salida (R1–R6 = zona del colocador) y equipo que saca.
@@ -29,7 +31,8 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - FREE: cuántas pasamos, quién, en qué toque y en qué rotación, cómo terminan esos puntos (y cuántas acaban en punto directo del rival); de las FREE del rival, cómo las aprovechamos (resultado de nuestro primer ataque) y desde dónde llegan.
   - Rival: zonas de ataque rival y estadísticas por jugador rival.
   - Por partido: resultado por sets, puntos propios, errores rivales y propios.
-- **Datos**: exportación e importación JSON (copia de seguridad), exportación CSV para Excel.
+- **Ayuda**: las métricas llevan un botón «?» que explica qué significan y cómo se calculan.
+- **Datos**: exportación e importación JSON de todos los clubes (copia de seguridad), exportación CSV del club activo para Excel.
 - Funciona **sin conexión** (service worker) y se puede instalar en la pantalla de inicio.
 - Modo oscuro automático.
 
@@ -69,7 +72,8 @@ js/store.js           Estado y persistencia
 js/rally.js           Sistemas, rotaciones, líbero y fases de cada punto
 js/stats.js           Cálculo de estadísticas
 js/ui.js              Utilidades (plantillas HTML, hojas, avisos)
-js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, datos
+js/help.js            Textos de ayuda de las métricas
+js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, datos, clubes, rivales
 sw.js                 Service worker (uso sin conexión)
 ```
 

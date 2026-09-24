@@ -4,6 +4,8 @@ import { renderTeam } from './views/team.js';
 import { renderNewMatch, renderMatch } from './views/match.js';
 import { renderStats } from './views/stats.js';
 import { renderData } from './views/data.js';
+import { renderClubBar } from './views/clubs.js';
+import { showHelp } from './help.js';
 
 const routes = [
   { pattern: /^\/$/, view: renderHome, tab: 'partidos' },
@@ -28,9 +30,25 @@ function router() {
   );
   document.body.classList.toggle('is-live', Boolean(route.live));
   document.getElementById('sheet-root').hidden = true;
+  renderClubBar(document.getElementById('club-bar'), onClubChange);
   route.view(main, params);
   window.scrollTo(0, 0);
 }
+
+// Al cambiar de club se vuelve al inicio (un partido abierto sería de otro club).
+function onClubChange() {
+  if (location.hash === '#/' || location.hash === '' || location.hash === '#/equipo') router();
+  else location.hash = '#/';
+}
+
+// Botones «?» de ayuda en cualquier pantalla.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-help]');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  showHelp(btn.dataset.help);
+}, true);
 
 window.addEventListener('hashchange', router);
 router();

@@ -1,6 +1,6 @@
 // Service worker: permite usar la app sin conexión (pabellones con mala cobertura).
 // Estrategia "network first": si hay red se usa la última versión publicada; si no, la caché.
-const CACHE = 'voley-app-v4';
+const CACHE = 'voley-app-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -18,6 +18,9 @@ const ASSETS = [
   './js/views/match.js',
   './js/views/stats.js',
   './js/views/data.js',
+  './js/views/clubs.js',
+  './js/views/rivals.js',
+  './js/help.js',
 ];
 
 self.addEventListener('install', (e) => {

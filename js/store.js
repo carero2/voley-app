@@ -7,44 +7,92 @@ import { resultDef } from './actions.js';
 import { setState, rotationOf, tacticalZone, currentPhase } from './rally.js';
 
 const STORAGE_KEY = 'voley-app:v1';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
-const emptyData = () => ({
-  version: SCHEMA_VERSION,
-  team: { name: 'Mi equipo' },
+// Estructura: { version, activeClubId, clubs: [club] }.
+// Cada club es independiente: { id, name, demo?, team, players, matches, rivals }.
+// `data` apunta siempre al club activo, así el resto de la app no necesita saber de clubes.
+let root;
+let data;
+const listeners = new Set();
+
+const emptyClub = (name = 'Mi club', teamName = 'Mi equipo') => ({
+  id: uid(),
+  name,
+  team: { name: teamName },
   players: [],
   matches: [],
   rivals: {},
 });
 
-let data = load();
-const listeners = new Set();
+// Club de ejemplo que aparece la primera vez (o si se borran todos los clubes).
+function demoClub() {
+  const club = emptyClub('Club de prueba', 'Equipo de prueba');
+  club.demo = true;
+  const roster = [
+    ['1', 'Colocador Demo', 'colocador'],
+    ['2', 'Opuesto Demo', 'opuesto'],
+    ['3', 'Receptor Demo A', 'receptor'],
+    ['4', 'Receptor Demo B', 'receptor'],
+    ['5', 'Central Demo A', 'central'],
+    ['6', 'Central Demo B', 'central'],
+    ['7', 'Líbero Demo', 'libero'],
+    ['8', 'Receptor Demo C', 'receptor'],
+  ];
+  club.players = roster.map(([number, name, position]) => ({ id: uid(), active: true, number, name, position }));
+  club.rivals = {
+    'rival de prueba': {
+      name: 'Rival de prueba',
+      players: ['10', '11', '12', '13', '14', '15'].map((n) => ({ id: uid(), number: n, name: `Rival Demo ${n}` })),
+    },
+  };
+  return club;
+}
+
+function normalizeClub(c) {
+  return {
+    id: c.id || uid(),
+    name: c.name || 'Mi club',
+    ...(c.demo ? { demo: true } : {}),
+    team: { name: 'Mi equipo', ...(c.team || {}) },
+    players: Array.isArray(c.players) ? c.players : [],
+    matches: Array.isArray(c.matches) ? c.matches : [],
+    rivals: c.rivals && typeof c.rivals === 'object' ? c.rivals : {},
+  };
+}
+
+function normalizeRoot(d) {
+  let clubs;
+  if (Array.isArray(d?.clubs)) {
+    clubs = d.clubs.map(normalizeClub);
+  } else if (d && (d.players?.length || d.matches?.length)) {
+    // Datos de la versión anterior (sin clubes): pasan a un club propio.
+    clubs = [normalizeClub({ ...d, name: 'Mi club' })];
+  } else {
+    clubs = [];
+  }
+  if (clubs.length === 0) clubs.push(demoClub());
+  const activeClubId = clubs.some((c) => c.id === d?.activeClubId) ? d.activeClubId : clubs[0].id;
+  return { version: SCHEMA_VERSION, activeClubId, clubs };
+}
+
+function activeFrom(r) {
+  return r.clubs.find((c) => c.id === r.activeClubId);
+}
 
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return emptyData();
-    return normalize(JSON.parse(raw));
+    return normalizeRoot(raw ? JSON.parse(raw) : null);
   } catch (err) {
     console.error('No se pudieron leer los datos guardados', err);
-    return emptyData();
+    return normalizeRoot(null);
   }
-}
-
-function normalize(d) {
-  const base = emptyData();
-  return {
-    version: SCHEMA_VERSION,
-    team: { ...base.team, ...(d.team || {}) },
-    players: Array.isArray(d.players) ? d.players : [],
-    matches: Array.isArray(d.matches) ? d.matches : [],
-    rivals: d.rivals && typeof d.rivals === 'object' ? d.rivals : {},
-  };
 }
 
 function persist() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(root));
   } catch (err) {
     console.error('No se pudieron guardar los datos', err);
     alert('No se han podido guardar los datos en este dispositivo. Exporta una copia de seguridad.');
@@ -52,8 +100,45 @@ function persist() {
   listeners.forEach((fn) => fn(data));
 }
 
+// ---------- Clubes ----------
+
+export const clubs = () => root.clubs;
+export const activeClub = () => data;
+
+export function switchClub(id) {
+  if (!root.clubs.some((c) => c.id === id)) return;
+  root.activeClubId = id;
+  data = activeFrom(root);
+  persist();
+}
+
+export function createClub({ name, teamName }) {
+  const club = emptyClub(name.trim() || 'Nuevo club', teamName.trim() || name.trim() || 'Mi equipo');
+  root.clubs.push(club);
+  switchClub(club.id);
+  return club;
+}
+
+export function updateClub(id, { name, teamName }) {
+  const club = root.clubs.find((c) => c.id === id);
+  if (name != null) club.name = name.trim() || club.name;
+  if (teamName != null) club.team.name = teamName.trim() || club.team.name;
+  persist();
+}
+
+export function deleteClub(id) {
+  root.clubs = root.clubs.filter((c) => c.id !== id);
+  if (root.clubs.length === 0) root.clubs.push(demoClub());
+  if (!root.clubs.some((c) => c.id === root.activeClubId)) root.activeClubId = root.clubs[0].id;
+  data = activeFrom(root);
+  persist();
+}
+
 export const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+root = load();
+data = activeFrom(root);
 
 export const getData = () => data;
 export const subscribe = (fn) => listeners.add(fn);
@@ -104,6 +189,31 @@ export const rivalPlayers = (name) =>
 
 export const rivalPlayerById = (name, id) => rivalPlayers(name).find((p) => p.id === id);
 
+export const rivalTeams = () =>
+  Object.values(data.rivals).sort((a, b) => a.name.localeCompare(b.name));
+
+export function ensureRivalTeam(name) {
+  if (name.trim() && !data.rivals[rivalKey(name)]) {
+    data.rivals[rivalKey(name)] = { name: name.trim(), players: [] };
+  }
+}
+
+// Renombra un equipo rival (y los partidos contra él) o lo crea si no existía.
+export function saveRivalTeam(oldName, newName) {
+  const team = data.rivals[rivalKey(oldName)] ?? { players: [] };
+  delete data.rivals[rivalKey(oldName)];
+  data.rivals[rivalKey(newName)] = { ...team, name: newName.trim() };
+  if (oldName && rivalKey(oldName) !== rivalKey(newName)) {
+    data.matches.forEach((m) => { if (rivalKey(m.opponent) === rivalKey(oldName)) m.opponent = newName.trim(); });
+  }
+  persist();
+}
+
+export function deleteRivalTeam(name) {
+  delete data.rivals[rivalKey(name)];
+  persist();
+}
+
 export function saveRivalPlayers(name, players) {
   data.rivals[rivalKey(name)] = {
     name: name.trim(),
@@ -134,6 +244,7 @@ export function createMatch({ opponent, date, place, bestOf, roster }) {
     events: [],
   };
   data.matches.push(match);
+  ensureRivalTeam(match.opponent);
   persist();
   return match;
 }
@@ -276,31 +387,47 @@ export function reopenMatch(matchId) {
 
 // ---------- Importar / exportar ----------
 
-export const exportData = () => JSON.parse(JSON.stringify(data));
+export const exportData = () => JSON.parse(JSON.stringify(root));
 
 // mode 'merge': añade/actualiza por id. mode 'replace': sustituye todo.
+// Acepta copias con clubes y copias antiguas de un solo equipo (que se cargan en el club activo).
 export function importData(incoming, mode = 'merge') {
-  if (!incoming || !Array.isArray(incoming.players) || !Array.isArray(incoming.matches)) {
+  const legacy = incoming && Array.isArray(incoming.players) && Array.isArray(incoming.matches);
+  if (!incoming || (!Array.isArray(incoming.clubs) && !legacy)) {
     throw new Error('El archivo no tiene el formato esperado.');
   }
-  const src = normalize(incoming);
-  if (mode === 'replace') {
-    data = src;
+  const mergeById = (current, extra) => {
+    const map = new Map(current.map((x) => [x.id, x]));
+    extra.forEach((x) => map.set(x.id, x));
+    return [...map.values()];
+  };
+  const mergeClub = (target, src) => {
+    target.players = mergeById(target.players, src.players);
+    target.matches = mergeById(target.matches, src.matches);
+    target.rivals = { ...target.rivals, ...src.rivals };
+  };
+
+  if (legacy) {
+    const src = normalizeClub(incoming);
+    if (mode === 'replace') Object.assign(data, { team: src.team, players: src.players, matches: src.matches, rivals: src.rivals });
+    else mergeClub(data, src);
+    delete data.demo;
+  } else if (mode === 'replace') {
+    root = normalizeRoot(incoming);
+    data = activeFrom(root);
   } else {
-    const mergeById = (current, extra) => {
-      const map = new Map(current.map((x) => [x.id, x]));
-      extra.forEach((x) => map.set(x.id, x));
-      return [...map.values()];
-    };
-    data.players = mergeById(data.players, src.players);
-    data.matches = mergeById(data.matches, src.matches);
-    data.rivals = { ...data.rivals, ...src.rivals };
-    if (data.team.name === 'Mi equipo') data.team = src.team;
+    for (const c of incoming.clubs.map(normalizeClub)) {
+      const target = root.clubs.find((x) => x.id === c.id);
+      if (target) mergeClub(target, c);
+      else root.clubs.push(c);
+    }
   }
   persist();
 }
 
+// Borra todo (todos los clubes) y vuelve a empezar con el club de prueba.
 export function resetAll() {
-  data = emptyData();
+  root = normalizeRoot(null);
+  data = activeFrom(root);
   persist();
 }

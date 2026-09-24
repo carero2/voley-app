@@ -3,6 +3,7 @@ import { POSITIONS, positionById, TOUCH_LABEL, skillById } from '../actions.js';
 import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, freeStats, pct } from '../stats.js';
 import { activePlayers, rivalPlayerById } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
+import { help } from '../help.js';
 
 const TABS = [
   { id: 'jugadores', label: 'Jugadores' },
@@ -22,6 +23,7 @@ export function renderStats(el, { query }) {
     history.replaceState(null, '', '#/estadisticas');
   }
   const matches = sortedMatches();
+  if (state.player && !playerById(state.player)) state.player = '';
   if (state.matchId && !matches.some((m) => m.id === state.matchId)) state.matchId = '';
   const selected = matches.find((m) => m.id === state.matchId);
   const maxSet = selected ? selected.currentSet : 0;
@@ -96,8 +98,8 @@ function playersTab(events) {
 
   return html`
     <section class="kpis">
-      ${kpi('Puntos ganados', team.won, `${team.ownPoints} propios · ${team.rivalErrors} errores rival`)}
-      ${kpi('Puntos cedidos', team.lost, `${team.ownErrors} errores propios · ${team.rivalPoints} del rival`)}
+      ${kpi('Puntos ganados', team.won, `${team.ownPoints} propios · ${team.rivalErrors} errores rival`, 'ganados')}
+      ${kpi('Puntos cedidos', team.lost, `${team.ownErrors} errores propios · ${team.rivalPoints} del rival`, 'perdidos')}
     </section>
 
     <section class="card">
@@ -153,11 +155,11 @@ function rotationsTab(events) {
   }
   return html`
     <section class="kpis">
-      ${kpi('Side-out', pct(total.recv ? total.sideOut / total.recv : null), `${total.sideOut} de ${total.recv} recibiendo`)}
-      ${kpi('Break', pct(total.serve ? total.breaks / total.serve : null), `${total.breaks} de ${total.serve} sacando`)}
+      ${kpi('Side-out', pct(total.recv ? total.sideOut / total.recv : null), `${total.sideOut} de ${total.recv} recibiendo`, 'sideOut')}
+      ${kpi('Break', pct(total.serve ? total.breaks / total.serve : null), `${total.breaks} de ${total.serve} sacando`, 'breakPt')}
     </section>
     <section class="card">
-      <h2>Side-out por rotación</h2>
+      <h2>Side-out por rotación${help('sideOut')}</h2>
       ${barChart(rows.map((r) => ({
         label: `R${r.rot}`,
         value: r.recv ? Math.round((r.sideOut / r.recv) * 100) : 0,
@@ -166,14 +168,14 @@ function rotationsTab(events) {
       })), 100)}
     </section>
     <section class="card">
-      <h2>Detalle por rotación <span class="muted small">(R = zona del colocador)</span></h2>
+      <h2>Detalle por rotación${help('rotacion')}</h2>
       <div class="table-wrap">
         <table class="stats-table">
           <thead><tr>
             <th class="sticky-col">Rot.</th>
-            <th>Recibiendo<br><small>ganados/jugados</small></th><th>Side-out</th>
-            <th>Sacando<br><small>ganados/jugados</small></th><th>Break</th>
-            <th>Balance</th>
+            <th>Recibiendo<br><small>ganados/jugados</small></th><th>Side-out${help('sideOut')}</th>
+            <th>Sacando<br><small>ganados/jugados</small></th><th>Break${help('breakPt')}</th>
+            <th>Balance${help('balanceRot')}</th>
           </tr></thead>
           <tbody>
             ${rows.map((r) => html`
@@ -216,12 +218,12 @@ function zonesTab(allEvents) {
   `;
 }
 
-function zoneCard(title, zones, order, goodLabel) {
+function zoneCard(title, zones, order, goodLabel, helpKey = 'zonas') {
   const max = Math.max(1, ...Object.values(zones).map((z) => z.total));
   const rival = order === RIVAL_ORDER;
   return html`
     <section class="card">
-      <h2>${title}</h2>
+      <h2>${title}${help(helpKey)}</h2>
       ${rival ? '' : html`<div class="mini-net">red</div>`}
       <div class="mini-court">
         ${order.map((zn) => {
@@ -268,8 +270,8 @@ function freeTab(events) {
 
   return html`
     <section class="kpis">
-      ${kpi('FREE nuestras', ours.total, `ganamos ${rate(ours.won, ours.won + ours.lost)} de esos puntos`)}
-      ${kpi('FREE del rival', theirs.total, `ganamos ${rate(theirs.won, theirs.won + theirs.lost)} de esos puntos`)}
+      ${kpi('FREE nuestras', ours.total, `ganamos ${rate(ours.won, ours.won + ours.lost)} de esos puntos`, 'free')}
+      ${kpi('FREE del rival', theirs.total, `ganamos ${rate(theirs.won, theirs.won + theirs.lost)} de esos puntos`, 'free')}
     </section>
 
     ${ours.total ? html`
@@ -278,9 +280,9 @@ function freeTab(events) {
         ${table(HEAD, outcomeRows(ours.byPlayer, playerLabel))}
       </section>
       <section class="card">
-        <h2>Nuestras FREE · en qué toque</h2>
+        <h2>Nuestras FREE · en qué toque${help('free')}</h2>
         ${table(HEAD, outcomeRows(ours.byTouch, (k) => TOUCH_LABEL[k] ?? k))}
-        <p class="muted small legend">Punto directo del rival justo después de nuestra FREE: <b>${ours.direct}</b> (${rate(ours.direct, ours.total)}).</p>
+        <p class="muted small legend">Punto directo del rival justo después de nuestra FREE${help('freeDirecto')}: <b>${ours.direct}</b> (${rate(ours.direct, ours.total)}).</p>
       </section>
       <section class="card">
         <h2>Nuestras FREE · por rotación</h2>
@@ -289,7 +291,7 @@ function freeTab(events) {
 
     ${theirs.total ? html`
       <section class="card">
-        <h2>FREE del rival · cómo las aprovechamos</h2>
+        <h2>FREE del rival · cómo las aprovechamos${help('freeRival')}</h2>
         ${table(['Veces', '%'], attackResults.map(([label, n]) => [label, n, rate(n, theirs.total)]))}
         <p class="muted small legend">Resultado de nuestro primer ataque después de recibir la FREE.</p>
       </section>
@@ -316,12 +318,12 @@ function rivalTab(events, matches) {
   }).filter((x) => x.p).sort((a, b) => b.s.points - a.s.points);
   return html`
     <div class="zone-cards">
-      ${zoneCard('Ataque rival · zona de origen', r.attack, RIVAL_ORDER, 'pts. rival')}
+      ${zoneCard('Ataque rival · zona de origen', r.attack, RIVAL_ORDER, 'pts. rival', 'ataqueRival')}
     </div>
 
     ${rivalRows.length ? html`
       <section class="card">
-        <h2>Jugadores rivales</h2>
+        <h2>Jugadores rivales${help('rivalJugadores')}</h2>
         <div class="table-wrap">
           <table class="stats-table">
             <thead><tr><th class="sticky-col"></th><th>Saques</th><th>Ataques</th><th>Puntos</th><th>Errores</th></tr></thead>
@@ -379,10 +381,10 @@ function matchesTab(matches) {
 
 // ---------- Componentes ----------
 
-function kpi(label, value, sub) {
+function kpi(label, value, sub, helpKey = null) {
   return html`
     <div class="card kpi">
-      <span class="kpi-label">${label}</span>
+      <span class="kpi-label">${label}${helpKey ? help(helpKey) : ''}</span>
       <span class="kpi-value">${value}</span>
       <span class="muted small">${sub}</span>
     </div>
@@ -415,13 +417,13 @@ function statsTable(rows, clickable) {
         <thead>
           <tr>
             <th class="sticky-col"></th>
-            <th title="Puntos ganados">Pts</th>
-            <th title="Puntos cedidos por errores">Ced</th>
-            <th title="Saques: aces / errores / total">Saque<br><small>A/E/T</small></th>
-            <th title="Recepción positiva (perfecta+buena)">Rec<br><small>pos%</small></th>
-            <th title="Recepción perfecta">Rec<br><small>perf%</small></th>
-            <th title="Ataques: puntos / total">Ataque<br><small>P/T</small></th>
-            <th title="Eficacia de ataque = (puntos − errores − bloqueados) / total">Ataque<br><small>efic.</small></th>
+            <th>Pts${help('puntos')}</th>
+            <th>Ced${help('cedidos')}</th>
+            <th>Saque${help('saque')}<br><small>A/E/T</small></th>
+            <th>Rec${help('recPos')}<br><small>pos%</small></th>
+            <th>Rec${help('recPerf')}<br><small>perf%</small></th>
+            <th>Ataque${help('ataque')}<br><small>P/T</small></th>
+            <th>Ataque${help('efAtaque')}<br><small>efic.</small></th>
             <th title="Bloqueos punto (block)">Block</th>
             <th title="Defensas buenas / total">Def<br><small>B/T</small></th>
           </tr>
@@ -466,7 +468,7 @@ function playerDetail(playerId, events) {
     <div class="detail-block">
       <h3>${title}</h3>
       <dl class="mini-stats">
-        ${items.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}
+        ${items.map(([k, v, h]) => html`<div><dt>${k}${h ? help(h) : ''}</dt><dd>${v}</dd></div>`)}
       </dl>
     </div>`;
 
@@ -480,13 +482,13 @@ function playerDetail(playerId, events) {
       <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
     </div>
     <dl class="mini-stats highlight">
-      <div><dt>Puntos</dt><dd>${m.points}</dd></div>
-      <div><dt>Cedidos</dt><dd>${m.given}</dd></div>
-      <div><dt>Balance</dt><dd>${m.balance > 0 ? '+' : ''}${m.balance}</dd></div>
+      <div><dt>Puntos${help('puntos')}</dt><dd>${m.points}</dd></div>
+      <div><dt>Cedidos${help('cedidos')}</dt><dd>${m.given}</dd></div>
+      <div><dt>Balance${help('balance')}</dt><dd>${m.balance > 0 ? '+' : ''}${m.balance}</dd></div>
     </dl>
-    ${block('Saque', [['Total', m.saque.total], ['Aces', m.saque.ace], ['Errores', m.saque.error], ['Eficacia', pct(m.saque.eff)]])}
-    ${block('Recepción', [['Total', m.recepcion.total], ['Perfectas', m.recepcion.perfecta], ['Positiva', pct(m.recepcion.positive)], ['Errores', m.recepcion.error]])}
-    ${block('Ataque', [['Total', m.ataque.total], ['Puntos', m.ataque.punto], ['Blockouts', m.ataque.blockout], ['Errores', m.ataque.error], ['Bloqueados', m.ataque.bloqueado], ['% Punto', pct(m.ataque.kill)], ['Eficacia', pct(m.ataque.eff)]])}
+    ${block('Saque', [['Total', m.saque.total], ['Aces', m.saque.ace], ['Errores', m.saque.error], ['Eficacia', pct(m.saque.eff), 'efSaque']])}
+    ${block('Recepción', [['Total', m.recepcion.total], ['Perfectas', m.recepcion.perfecta], ['Positiva', pct(m.recepcion.positive), 'recPos'], ['Errores', m.recepcion.error]])}
+    ${block('Ataque', [['Total', m.ataque.total], ['Puntos', m.ataque.punto], ['Blockouts', m.ataque.blockout], ['Errores', m.ataque.error], ['Bloqueados', m.ataque.bloqueado], ['% Punto', pct(m.ataque.kill), 'killAtaque'], ['Eficacia', pct(m.ataque.eff), 'efAtaque']])}
     ${block('Bloqueo', [['Block', m.bloqueo.punto], ['Toques', m.bloqueo.toque], ['Blockout', m.bloqueo.error]])}
     ${block('Defensa', [['Total', m.defensa.total], ['Buenas', m.defensa.buena], ['Errores', m.defensa.error]])}
     ${block('Colocación', [['Total', m.colocacion.total], ['Buenas', m.colocacion.buena], ['Errores', m.colocacion.error]])}

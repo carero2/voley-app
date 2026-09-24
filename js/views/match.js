@@ -1,7 +1,7 @@
 import {
   getData, activePlayers, playerById, matchById, createMatch, addEvent, undoLastEvent,
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
-  setLineup, substitute, rivalPlayers, rivalPlayerById, saveRivalPlayers,
+  setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams,
 } from '../store.js';
 import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent } from '../actions.js';
 import {
@@ -9,11 +9,13 @@ import {
   formation, formationKind, isFront,
 } from '../rally.js';
 import { html, raw, openSheet, toast, vibrate, today, formatDate } from '../ui.js';
+import { openRivalEditor } from './rivals.js';
 
 // ---------- Nuevo partido ----------
 
 export function renderNewMatch(el) {
   const players = activePlayers();
+  const rivals = rivalTeams();
   el.innerHTML = html`
     <header class="page-head with-back">
       <a class="back" href="#/" aria-label="Volver">‹</a>
@@ -22,8 +24,13 @@ export function renderNewMatch(el) {
     <form id="new-match" class="card stack">
       <label class="field">
         <span>Rival</span>
-        <input name="opponent" required autocomplete="off" placeholder="Nombre del rival" />
+        <input name="opponent" required autocomplete="off" list="rival-list" placeholder="Elige un rival o escribe uno nuevo" />
+        <datalist id="rival-list">${rivals.map((r) => html`<option value="${r.name}"></option>`)}</datalist>
       </label>
+      ${rivals.length ? html`
+        <div class="chips">
+          ${rivals.map((r) => html`<button type="button" class="chip-btn" data-rival-name="${r.name}">${r.name}</button>`)}
+        </div>` : ''}
       <div class="form-row">
         <label class="field grow">
           <span>Fecha</span>
@@ -55,6 +62,11 @@ export function renderNewMatch(el) {
       <button class="btn btn-primary btn-block btn-lg" type="submit">Continuar a la alineación</button>
     </form>
   `;
+
+  el.querySelectorAll('[data-rival-name]').forEach((b) => b.addEventListener('click', () => {
+    el.querySelector('input[name=opponent]').value = b.dataset.rivalName;
+    el.querySelectorAll('[data-rival-name]').forEach((x) => x.classList.toggle('selected', x === b));
+  }));
 
   el.querySelector('#new-match').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -288,7 +300,7 @@ function renderLineup(el, match, rerender) {
     clearSelection();
     rerender();
   });
-  el.querySelector('#rival-roster').addEventListener('click', () => editRivalRoster(match, rerender));
+  el.querySelector('#rival-roster').addEventListener('click', () => openRivalEditor(match.opponent, rerender, { fixedName: true }));
   el.querySelector('#cancel-lineup')?.addEventListener('click', () => {
     ui.editLineup = false;
     ui.draft = null;
@@ -678,7 +690,7 @@ function openMatchMenu(match, st, rerender) {
   });
   sheet.root.querySelector('#m-rivals').addEventListener('click', () => {
     sheet.close();
-    editRivalRoster(match, rerender);
+    openRivalEditor(match.opponent, rerender, { fixedName: true });
   });
   sheet.root.querySelector('#m-delete').addEventListener('click', () => {
     if (!confirm('¿Eliminar este partido y todas sus acciones? No se puede deshacer.')) return;
@@ -718,58 +730,6 @@ function openSubstitution(match, st, rerender) {
       toast('Cambio registrado');
       rerender();
     }));
-  };
-  draw();
-}
-
-// Plantilla rival: se guarda por nombre del equipo y se reutiliza en los siguientes partidos.
-function editRivalRoster(match, rerender) {
-  let rows = rivalPlayers(match.opponent).map((p) => ({ ...p }));
-  if (rows.length === 0) rows = [{ number: '', name: '' }];
-  const draw = () => {
-    const sheet = openSheet(html`
-      <div class="sheet-title">
-        <h2 class="grow">Plantilla de ${match.opponent}</h2>
-        <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
-      </div>
-      <p class="muted small">Opcional. Sirve para anotar qué jugador rival saca o ataca. Se guarda para próximos partidos contra este equipo.</p>
-      <form id="rival-form" class="stack">
-        ${rows.map((r, i) => html`
-          <div class="form-row rival-row">
-            <input class="dorsal-field" name="number" data-i="${i}" inputmode="numeric" placeholder="Dorsal" value="${r.number}" />
-            <input class="grow" name="name" data-i="${i}" placeholder="Nombre (opcional)" value="${r.name}" autocomplete="off" />
-            <button type="button" class="btn btn-ghost" data-remove="${i}" aria-label="Quitar">✕</button>
-          </div>`)}
-        <button type="button" class="btn" id="add-rival">＋ Añadir jugador</button>
-        <div class="form-actions">
-          <button type="button" class="btn" data-close>Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar</button>
-        </div>
-      </form>
-    `.toString());
-    const form = sheet.root.querySelector('#rival-form');
-    const read = () => form.querySelectorAll('input').forEach((inp) => { rows[Number(inp.dataset.i)][inp.name] = inp.value; });
-    sheet.root.querySelector('#add-rival').addEventListener('click', () => {
-      read();
-      rows.push({ number: '', name: '' });
-      sheet.close();
-      draw();
-      [...document.querySelectorAll('.sheet .rival-row input[name=number]')].at(-1)?.focus();
-    });
-    sheet.root.querySelectorAll('[data-remove]').forEach((b) => b.addEventListener('click', () => {
-      read();
-      rows.splice(Number(b.dataset.remove), 1);
-      sheet.close();
-      draw();
-    }));
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      read();
-      saveRivalPlayers(match.opponent, rows.filter((r) => String(r.number).trim()));
-      sheet.close();
-      toast('Plantilla rival guardada');
-      rerender();
-    });
   };
   draw();
 }

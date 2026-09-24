@@ -1,4 +1,4 @@
-import { getData, exportData, importData, resetAll, playerById } from '../store.js';
+import { getData, exportData, importData, resetAll, playerById, clubs } from '../store.js';
 import { positionById, skillById, resultDef } from '../actions.js';
 import { html, download, toast, today } from '../ui.js';
 
@@ -11,18 +11,19 @@ export function renderData(el) {
 
     <section class="card">
       <p>Los datos se guardan <b>solo en este dispositivo</b>. Exporta una copia después de cada partido.</p>
-      <p class="muted small">${d.players.length} jugadores · ${d.matches.length} partidos · ${events} acciones</p>
+      <p class="muted small">Club «${d.name}»: ${d.players.length} jugadores · ${d.matches.length} partidos · ${events} acciones</p>
+      <p class="muted small">${clubs().length} ${clubs().length === 1 ? 'club' : 'clubes'} en este dispositivo.</p>
     </section>
 
     <section class="card stack">
       <h2>Exportar</h2>
-      <button class="btn btn-primary btn-block" id="export-json">Descargar copia (JSON)</button>
-      <button class="btn btn-block" id="export-csv">Descargar acciones (CSV para Excel)</button>
+      <button class="btn btn-primary btn-block" id="export-json">Descargar copia de todos los clubes (JSON)</button>
+      <button class="btn btn-block" id="export-csv">Descargar acciones de este club (CSV para Excel)</button>
     </section>
 
     <section class="card stack">
       <h2>Importar</h2>
-      <p class="muted small">Carga una copia JSON. «Combinar» añade los partidos que no tengas; «Reemplazar» borra lo actual.</p>
+      <p class="muted small">Carga una copia JSON. «Combinar» añade los clubes, jugadores y partidos que no tengas; «Reemplazar» borra todo lo actual. Una copia antigua (de antes de los clubes) se carga en el club activo.</p>
       <input type="file" id="file" accept="application/json,.json" hidden />
       <div class="form-actions">
         <button class="btn" data-import="merge">Combinar</button>
@@ -32,7 +33,7 @@ export function renderData(el) {
 
     <section class="card stack">
       <h2>Zona peligrosa</h2>
-      <button class="btn btn-danger btn-block" id="reset">Borrar todos los datos</button>
+      <button class="btn btn-danger btn-block" id="reset">Borrar todos los datos (todos los clubes)</button>
     </section>
   `;
 
@@ -59,17 +60,17 @@ export function renderData(el) {
     try {
       importData(JSON.parse(await file.text()), mode);
       toast('Datos importados');
-      renderData(el);
+      window.dispatchEvent(new HashChangeEvent('hashchange')); // refresca también la barra del club
     } catch (err) {
       alert(`No se pudo importar: ${err.message}`);
     }
   });
 
   el.querySelector('#reset').addEventListener('click', () => {
-    if (!confirm('¿Seguro que quieres borrar TODOS los datos? Exporta antes una copia.')) return;
+    if (!confirm('¿Seguro que quieres borrar TODOS los datos de TODOS los clubes? Exporta antes una copia.')) return;
     resetAll();
     toast('Datos borrados');
-    renderData(el);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
 }
 
