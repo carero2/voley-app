@@ -150,6 +150,7 @@ const NEXT = {
   bloqueo: { toque: 'defense' },
   defensa: { buena: 'set', mala: 'set' },
   equipo: { free: 'defense' },
+  rival: { free: 'freeRecv' },
 };
 
 export function currentPhase(st) {
@@ -164,6 +165,7 @@ export const PHASES = {
   set: { label: 'Colocación', skill: 'colocacion' },
   attack: { label: 'Ataque', skill: 'ataque' },
   defense: { label: 'Defensa / bloqueo', skill: null },
+  freeRecv: { label: 'FREE rival', skill: 'defensa' },
 };
 
 // ---------- Posiciones de juego ----------
@@ -172,7 +174,7 @@ export const PHASES = {
 
 const LANE_X = { 4: 17, 5: 17, 3: 50, 6: 50, 2: 83, 1: 83 };
 const LANE = { 4: 0, 5: 0, 3: 1, 6: 1, 2: 2, 1: 2 };
-const Y = { front: 20, back: 70, net: 12, line: 58, deep: 88 };
+const Y = { front: 22, back: 70, net: 14, line: 60, deep: 88 };
 
 // Grupo de cada slot en 5-1 / 4-2 / 6-2: colocador u opuesto, receptor, central.
 const GROUP_OF_SLOT = ['so', 'rec', 'cen', 'so', 'rec', 'cen'];

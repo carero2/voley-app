@@ -246,7 +246,7 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
   background: var(--court); padding: 8px; border-radius: var(--radius);
   max-width: 520px; margin: 0 auto; width: 100%;
 }
-.half { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; position: relative; }
+.half { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; position: relative; }
 .half.rival { opacity: .9; }
 .half-label {
   grid-column: 1 / -1; text-align: center; font-size: .75rem; font-weight: 700;
@@ -261,24 +261,26 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 }
 .zone:disabled { cursor: default; }
 .zone-num { position: absolute; top: 3px; left: 6px; font-size: .7rem; font-weight: 700; opacity: .6; }
-.rival-zone { min-height: 44px; background: rgb(255 255 255 / 22%); color: #fff; }
+.rival-zone { min-height: 30px; padding: 2px; background: rgb(255 255 255 / 22%); color: #fff; }
 .rival-zone .zone-num { position: static; font-size: .9rem; opacity: .9; }
 .rival.is-selecting .rival-zone { background: rgb(255 255 255 / 38%); border-color: rgb(255 255 255 / 60%); }
 .rival-zone.selected { background: var(--primary) !important; border-color: #fff !important; }
 /* Nuestro medio campo: fichas colocadas por coordenadas sobre las 6 zonas */
 .half.ours {
   display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 2fr; gap: 0;
-  aspect-ratio: 4 / 3; border: 2px solid var(--court-line); border-top: 0; border-radius: 0 0 6px 6px;
+  /* Zona de zagueros más baja que la real para que todo quepa en pantalla (ataque 43% / zagueros 57%) */
+  grid-template-rows: 1fr 1.3fr; aspect-ratio: 2 / 1;
+  border: 2px solid var(--court-line); border-top: 0; border-radius: 0 0 6px 6px;
 }
 .zone-bg {
   display: flex; align-items: flex-end; justify-content: flex-start; padding: 2px 6px;
   font-size: .7rem; font-weight: 700; color: rgb(255 255 255 / 70%);
   border: 1px dashed rgb(255 255 255 / 35%);
 }
-.attack-line { position: absolute; left: 0; right: 0; top: 33.3%; border-top: 2px solid var(--court-line); pointer-events: none; }
+.attack-line { position: absolute; left: 0; right: 0; top: 43.5%; border-top: 2px solid var(--court-line); pointer-events: none; }
 .token {
   position: absolute; transform: translate(-50%, -50%);
-  width: 29%; min-height: 58px; padding: 4px;
+  width: 29%; min-height: 44px; padding: 2px 4px;
   appearance: none; font: inherit; color: var(--text); cursor: pointer;
   background: var(--surface); border: 2px solid transparent; border-radius: 12px; box-shadow: var(--shadow);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -290,9 +292,9 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 .token.selected { background: var(--primary); color: var(--primary-ink); border-color: #fff; z-index: 2; }
 .token.libero { background: #ffe9a8; color: #3b2d00; }
 .token.libero.selected { background: var(--primary); color: var(--primary-ink); }
-.pz-number { font-size: 1.5rem; font-weight: 800; line-height: 1; }
-.pz-name { font-size: .75rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.court-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.pz-number { font-size: 1.2rem; font-weight: 800; line-height: 1; }
+.pz-name { font-size: .68rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.court-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .btn-small { min-height: 36px; padding: 6px 12px; font-size: .85rem; }
 .hint { margin: 0; font-size: .8rem; color: var(--text-2); }
 .rival-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -356,7 +358,8 @@ select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
 .skill-list { display: flex; flex-direction: column; gap: 12px; }
 .skill-row { display: flex; flex-direction: column; gap: 6px; }
 .skill-name { font-weight: 700; font-size: .85rem; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
-.skill-results { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.skill-results { display: flex; gap: 6px; }
+.skill-results .btn { flex: 1 1 0; min-width: 0; }
 .skill-results .btn { min-height: 52px; padding: 6px 4px; font-size: .9rem; }
 
 /* Partido finalizado */
@@ -473,9 +476,9 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 /* ---------- Tablet ---------- */
 @media (min-width: 700px) {
   h1 { font-size: 1.8rem; }
-  .token { min-height: 76px; }
-  .pz-number { font-size: 2rem; }
-  .rival-zone { min-height: 56px; }
+  .token { min-height: 56px; }
+  .pz-number { font-size: 1.6rem; }
+  .rival-zone { min-height: 40px; }
   .sb-score { font-size: 4rem; }
   .sheet {
     left: 50%; right: auto; bottom: auto; top: 50%;
@@ -511,4 +514,16 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Partido en directo en móvil: cabecera y marcador compactos */
+@media (max-width: 699px) {
+  body.is-live .container { gap: 10px; padding-top: calc(8px + env(safe-area-inset-top)); }
+  body.is-live .live-head h1 { font-size: 1.15rem; }
+  body.is-live .scoreboard { padding: 6px 10px; }
+  body.is-live .sb-score { font-size: 2.2rem; }
+  body.is-live .court { padding: 6px; }
+  body.is-live .net { margin: 4px -6px; }
+  body.is-live .half-label { font-size: .68rem; }
+  body.is-live .result-row .skill-results .btn { min-height: 48px; font-size: .78rem; padding: 4px 2px; }
 }

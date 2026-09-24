@@ -1,6 +1,6 @@
 import { getData, sortedMatches, playerById, setsSummary } from '../store.js';
-import { POSITIONS, positionById } from '../actions.js';
-import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, pct } from '../stats.js';
+import { POSITIONS, positionById, TOUCH_LABEL, skillById } from '../actions.js';
+import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, freeStats, pct } from '../stats.js';
 import { activePlayers, rivalPlayerById } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
 
@@ -9,6 +9,7 @@ const TABS = [
   { id: 'posiciones', label: 'Posición' },
   { id: 'rotaciones', label: 'Rotación' },
   { id: 'zonas', label: 'Zonas' },
+  { id: 'free', label: 'FREE' },
   { id: 'rival', label: 'Rival' },
   { id: 'partidos', label: 'Partidos' },
 ];
@@ -56,6 +57,7 @@ export function renderStats(el, { query }) {
         : state.tab === 'posiciones' ? positionsTab(events)
         : state.tab === 'rotaciones' ? rotationsTab(events)
         : state.tab === 'zonas' ? zonesTab(events)
+        : state.tab === 'free' ? freeTab(events)
         : state.tab === 'rival' ? rivalTab(events, matches)
         : matchesTab(matches.filter((m) => !state.matchId || m.id === state.matchId))}
     </div>
@@ -238,6 +240,71 @@ function zoneCard(title, zones, order, goodLabel) {
   `;
 }
 
+// ---------- Pestaña FREE ----------
+
+function freeTab(events) {
+  const { ours, theirs } = freeStats(events);
+  if (ours.total + theirs.total === 0) {
+    return html`<p class="center muted">No hay bolas FREE registradas.</p>`;
+  }
+  const rate = (a, b) => pct(b ? a / b : null);
+  const table = (head, rows) => html`
+    <div class="table-wrap">
+      <table class="stats-table">
+        <thead><tr><th class="sticky-col"></th>${head.map((h) => html`<th>${h}</th>`)}</tr></thead>
+        <tbody>${rows.map(([label, ...cells]) => html`<tr><th class="sticky-col" scope="row">${label}</th>${cells.map((c) => html`<td>${c}</td>`)}</tr>`)}</tbody>
+      </table>
+    </div>`;
+  const outcomeRows = (map, labelOf) => [...map].sort((a, b) => b[1].n - a[1].n)
+    .map(([k, r]) => [labelOf(k), r.n, r.won, r.lost, rate(r.won, r.won + r.lost)]);
+  const playerLabel = (id) => {
+    const p = playerById(id);
+    return p ? html`<b>${p.number}</b> ${p.name}` : '—';
+  };
+  const rotRows = (map) => [1, 2, 3, 4, 5, 6].filter((r) => map.has(r))
+    .map((r) => [html`<b>R${r}</b>`, map.get(r).n, map.get(r).won, map.get(r).lost, rate(map.get(r).won, map.get(r).won + map.get(r).lost)]);
+  const HEAD = ['FREE', 'Ganados', 'Perdidos', '% ganados'];
+  const attackResults = [...skillById('ataque').results.map((r) => [r.label, theirs.firstAttack[r.id] || 0]), ['Sin llegar a atacar', theirs.noAttack]];
+
+  return html`
+    <section class="kpis">
+      ${kpi('FREE nuestras', ours.total, `ganamos ${rate(ours.won, ours.won + ours.lost)} de esos puntos`)}
+      ${kpi('FREE del rival', theirs.total, `ganamos ${rate(theirs.won, theirs.won + theirs.lost)} de esos puntos`)}
+    </section>
+
+    ${ours.total ? html`
+      <section class="card">
+        <h2>Nuestras FREE · quién</h2>
+        ${table(HEAD, outcomeRows(ours.byPlayer, playerLabel))}
+      </section>
+      <section class="card">
+        <h2>Nuestras FREE · en qué toque</h2>
+        ${table(HEAD, outcomeRows(ours.byTouch, (k) => TOUCH_LABEL[k] ?? k))}
+        <p class="muted small legend">Punto directo del rival justo después de nuestra FREE: <b>${ours.direct}</b> (${rate(ours.direct, ours.total)}).</p>
+      </section>
+      <section class="card">
+        <h2>Nuestras FREE · por rotación</h2>
+        ${table(HEAD, rotRows(ours.byRot))}
+      </section>` : ''}
+
+    ${theirs.total ? html`
+      <section class="card">
+        <h2>FREE del rival · cómo las aprovechamos</h2>
+        ${table(['Veces', '%'], attackResults.map(([label, n]) => [label, n, rate(n, theirs.total)]))}
+        <p class="muted small legend">Resultado de nuestro primer ataque después de recibir la FREE.</p>
+      </section>
+      <section class="card">
+        <h2>FREE del rival · por rotación</h2>
+        ${table(HEAD, rotRows(theirs.byRot))}
+      </section>` : ''}
+
+    <div class="zone-cards">
+      ${zoneCard('Nuestras FREE · destino', ours.zones, RIVAL_ORDER, 'ganadas')}
+      ${zoneCard('FREE del rival · origen', theirs.zones, RIVAL_ORDER, 'ganadas')}
+    </div>
+  `;
+}
+
 // ---------- Pestaña Rival ----------
 
 function rivalTab(events, matches) {
@@ -247,38 +314,9 @@ function rivalTab(events, matches) {
     const ev = events.find((e) => e.rivalPlayerId === id);
     return { p: rivalPlayerById(opponentOf.get(ev?.matchId) ?? '', id), team: opponentOf.get(ev?.matchId), s };
   }).filter((x) => x.p).sort((a, b) => b.s.points - a.s.points);
-  const freeRow = (label, f, mine) => html`
-    <tr>
-      <th class="sticky-col" scope="row">${label}</th>
-      <td>${f.total}</td>
-      <td>${f.won}</td>
-      <td>${f.lost}</td>
-      <td>${pct(f.total ? (mine ? f.won : f.lost) / f.total : null)}</td>
-    </tr>`;
   return html`
     <div class="zone-cards">
       ${zoneCard('Ataque rival · zona de origen', r.attack, RIVAL_ORDER, 'pts. rival')}
-    </div>
-
-    <section class="card">
-      <h2>Bolas FREE</h2>
-      <div class="table-wrap">
-        <table class="stats-table">
-          <thead><tr>
-            <th class="sticky-col"></th><th>Total</th><th>Puntos nuestros</th><th>Puntos rival</th><th>Éxito<br><small>del que envía</small></th>
-          </tr></thead>
-          <tbody>
-            ${freeRow('FREE nuestras', r.free.us, true)}
-            ${freeRow('FREE del rival', r.free.them, false)}
-          </tbody>
-        </table>
-      </div>
-      <p class="muted small legend">Cuenta quién ganó el punto en el que se jugó la bola FREE.</p>
-    </section>
-
-    <div class="zone-cards">
-      ${zoneCard('FREE nuestras · destino', r.free.us.zones, RIVAL_ORDER, 'ganadas')}
-      ${zoneCard('FREE del rival · origen', r.free.them.zones, RIVAL_ORDER, 'pts. rival')}
     </div>
 
     ${rivalRows.length ? html`
@@ -423,6 +461,7 @@ function playerDetail(playerId, events) {
   const g = countsBy(events.filter((e) => e.playerId === playerId), () => 'x').get('x');
   if (!p || !g) return;
   const m = metrics(g.counts);
+  const frees = events.filter((e) => e.playerId === playerId && e.skill === 'equipo' && e.result === 'free');
   const block = (title, items) => html`
     <div class="detail-block">
       <h3>${title}</h3>
@@ -447,9 +486,10 @@ function playerDetail(playerId, events) {
     </dl>
     ${block('Saque', [['Total', m.saque.total], ['Aces', m.saque.ace], ['Errores', m.saque.error], ['Eficacia', pct(m.saque.eff)]])}
     ${block('Recepción', [['Total', m.recepcion.total], ['Perfectas', m.recepcion.perfecta], ['Positiva', pct(m.recepcion.positive)], ['Errores', m.recepcion.error]])}
-    ${block('Ataque', [['Total', m.ataque.total], ['Puntos', m.ataque.punto], ['Errores', m.ataque.error], ['Bloqueados', m.ataque.bloqueado], ['% Punto', pct(m.ataque.kill)], ['Eficacia', pct(m.ataque.eff)]])}
+    ${block('Ataque', [['Total', m.ataque.total], ['Puntos', m.ataque.punto], ['Blockouts', m.ataque.blockout], ['Errores', m.ataque.error], ['Bloqueados', m.ataque.bloqueado], ['% Punto', pct(m.ataque.kill)], ['Eficacia', pct(m.ataque.eff)]])}
     ${block('Bloqueo', [['Block', m.bloqueo.punto], ['Toques', m.bloqueo.toque], ['Blockout', m.bloqueo.error]])}
     ${block('Defensa', [['Total', m.defensa.total], ['Buenas', m.defensa.buena], ['Errores', m.defensa.error]])}
     ${block('Colocación', [['Total', m.colocacion.total], ['Buenas', m.colocacion.buena], ['Errores', m.colocacion.error]])}
+    ${block('FREE enviadas', Object.entries(TOUCH_LABEL).map(([k, label]) => [label, frees.filter((e) => (e.phase ?? 'attack') === k).length]).filter(([, n]) => n).concat([['Total', frees.length]]))}
   `.toString());
 }

@@ -4,7 +4,7 @@
 // usando `exportData()` / `importData()`; el resto de la app no cambia.
 
 import { resultDef } from './actions.js';
-import { setState, rotationOf, tacticalZone } from './rally.js';
+import { setState, rotationOf, tacticalZone, currentPhase } from './rally.js';
 
 const STORAGE_KEY = 'voley-app:v1';
 const SCHEMA_VERSION = 1;
@@ -167,6 +167,7 @@ export function addEvent(matchId, {
     zoneTo,
     rivalZone,
     rivalPlayerId,
+    phase: phase ?? (st.setup ? currentPhase(st) : null),
     skill,
     result,
     point: def?.point ?? null,

@@ -38,7 +38,7 @@ const ratio = (n, d) => (d ? n / d : null);
 
 export function metrics(counts) {
   const { saque, recepcion, ataque, bloqueo, defensa, colocacion } = counts;
-  const points = saque.ace + ataque.punto + bloqueo.punto;
+  const points = saque.ace + ataque.punto + ataque.blockout + bloqueo.punto;
   const given =
     saque.error + recepcion.error + ataque.error + ataque.bloqueado +
     bloqueo.error + defensa.error + colocacion.error;
@@ -57,9 +57,10 @@ export function metrics(counts) {
       positive: ratio(recepcion.perfecta + recepcion.buena, recepcion.total),
     },
     ataque: {
-      total: ataque.total, punto: ataque.punto, error: ataque.error, bloqueado: ataque.bloqueado,
-      kill: ratio(ataque.punto, ataque.total),
-      eff: ratio(ataque.punto - ataque.error - ataque.bloqueado, ataque.total),
+      total: ataque.total, punto: ataque.punto + ataque.blockout, blockout: ataque.blockout,
+      error: ataque.error, bloqueado: ataque.bloqueado,
+      kill: ratio(ataque.punto + ataque.blockout, ataque.total),
+      eff: ratio(ataque.punto + ataque.blockout - ataque.error - ataque.bloqueado, ataque.total),
     },
     bloqueo: { total: bloqueo.total, punto: bloqueo.punto, toque: bloqueo.toque, error: bloqueo.error },
     defensa: {
@@ -109,7 +110,7 @@ export function rotationStats(events) {
 // Recuento por zona (1..6) de un fundamento, usando la zona de origen o la de destino.
 export function zoneStats(events, skill, field = 'zone') {
   const zones = Object.fromEntries([1, 2, 3, 4, 5, 6].map((z) => [z, { total: 0, good: 0, bad: 0 }]));
-  const GOOD = { ataque: ['punto'], saque: ['ace'], recepcion: ['perfecta', 'buena'] };
+  const GOOD = { ataque: ['punto', 'blockout'], saque: ['ace'], recepcion: ['perfecta', 'buena'] };
   const BAD = { ataque: ['error', 'bloqueado'], saque: ['error'], recepcion: ['error', 'mala'] };
   for (const e of events) {
     if (e.skill !== skill || !e[field]) continue;
@@ -128,7 +129,7 @@ function rallyWinners(events) {
   return w;
 }
 
-// Ataque rival por zona de origen, bolas FREE (propias y rivales) y jugadores rivales.
+// Ataque rival por zona de origen y jugadores rivales.
 export function rivalStats(events) {
   const winners = rallyWinners(events);
   const rallyKey = (e) => `${e.matchId}|${e.set}|${e.rally}`;
@@ -136,27 +137,13 @@ export function rivalStats(events) {
 
   // good = punto del rival, bad = punto nuestro (en ese mismo punto jugado).
   const attack = zoneMap();
-  const free = {
-    us: { total: 0, won: 0, lost: 0, zones: zoneMap() },
-    them: { total: 0, won: 0, lost: 0, zones: zoneMap() },
-  };
   const players = new Map();
-  const counted = new Set();
 
   for (const e of events) {
     const outcome = winners.get(rallyKey(e));
-    const isFree = e.result === 'free' && (e.skill === 'equipo' || e.skill === 'rival');
-    if (isFree) {
-      const f = free[e.skill === 'equipo' ? 'us' : 'them'];
-      f.total++;
-      if (outcome === 'us') f.won++; else if (outcome === 'them') f.lost++;
-      const z = e.skill === 'equipo' ? e.zoneTo : e.rivalZone;
-      if (z) {
-        f.zones[z].total++;
-        if (outcome === (e.skill === 'equipo' ? 'us' : 'them')) f.zones[z].good++;
-      }
-    } else if (e.rivalZone && !counted.has(e.id)) {
-      counted.add(e.id);
+    // La zona de una FREE rival no es un ataque; la de nuestra defensa (aunque acabe en FREE) sí.
+    const rivalFree = e.skill === 'rival' && e.result === 'free';
+    if (!rivalFree && e.rivalZone) {
       const z = attack[e.rivalZone];
       z.total++;
       if (outcome === 'them') z.good++; else if (outcome === 'us') z.bad++;
@@ -169,7 +156,64 @@ export function rivalStats(events) {
       if (e.point === 'them') p.points++; else if (e.point === 'us') p.errors++;
     }
   }
-  return { attack, free, players };
+  return { attack, players };
+}
+
+// Bolas FREE: quién, cuándo (toque y rotación), cuántas y cómo terminan los puntos.
+export function freeStats(events) {
+  const rallies = new Map();
+  for (const e of events) {
+    if (!e.rally) continue;
+    const k = `${e.matchId}|${e.set}|${e.rally}`;
+    if (!rallies.has(k)) rallies.set(k, []);
+    rallies.get(k).push(e);
+  }
+  const zoneMap = () => Object.fromEntries([1, 2, 3, 4, 5, 6].map((z) => [z, { total: 0, good: 0, bad: 0 }]));
+  const bump = (map, key, won) => {
+    if (key == null) return;
+    if (!map.has(key)) map.set(key, { n: 0, won: 0, lost: 0 });
+    const r = map.get(key);
+    r.n++;
+    if (won === true) r.won++; else if (won === false) r.lost++;
+  };
+  const ours = { total: 0, won: 0, lost: 0, direct: 0, byPlayer: new Map(), byTouch: new Map(), byRot: new Map(), zones: zoneMap() };
+  const theirs = { total: 0, won: 0, lost: 0, firstAttack: {}, noAttack: 0, byRot: new Map(), zones: zoneMap() };
+
+  for (const list of rallies.values()) {
+    const winner = list.find((e) => e.point)?.point;
+    list.forEach((e, i) => {
+      if (e.result !== 'free') return;
+      const rest = list.slice(i + 1);
+      if (e.skill === 'equipo') {
+        const won = winner ? winner === 'us' : null;
+        ours.total++;
+        if (won === true) ours.won++; else if (won === false) ours.lost++;
+        // Punto directo del rival: lo siguiente que se anota es un punto suyo sin que toquemos el balón.
+        const next = rest.find((x) => x.point || x.playerId);
+        if (next?.point === 'them' && next.skill === 'rival') ours.direct++;
+        bump(ours.byPlayer, e.playerId, won);
+        bump(ours.byTouch, e.phase ?? 'attack', won);
+        bump(ours.byRot, e.rot, won);
+        if (e.zoneTo) {
+          ours.zones[e.zoneTo].total++;
+          if (won === true) ours.zones[e.zoneTo].good++;
+        }
+      } else if (e.skill === 'rival') {
+        const won = winner ? winner === 'us' : null;
+        theirs.total++;
+        if (won === true) theirs.won++; else if (won === false) theirs.lost++;
+        const attack = rest.find((x) => x.skill === 'ataque');
+        if (attack) theirs.firstAttack[attack.result] = (theirs.firstAttack[attack.result] || 0) + 1;
+        else theirs.noAttack++;
+        bump(theirs.byRot, e.rot, won);
+        if (e.rivalZone) {
+          theirs.zones[e.rivalZone].total++;
+          if (won === true) theirs.zones[e.rivalZone].good++;
+        }
+      }
+    });
+  }
+  return { ours, theirs };
 }
 
 export const pct = (v) => (v == null ? '–' : `${Math.round(v * 100)}%`);

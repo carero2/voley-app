@@ -30,6 +30,7 @@ export const SKILLS = [
   {
     id: 'ataque', label: 'Ataque', results: [
       { id: 'punto', label: 'Punto', tone: 'good', point: 'us' },
+      { id: 'blockout', label: 'Blockout', tone: 'good', point: 'us' },
       { id: 'enjuego', label: 'En juego', tone: 'neutral', point: null },
       { id: 'bloqueado', label: 'Bloqueado', tone: 'bad', point: 'them' },
       { id: 'error', label: 'Error', tone: 'error', point: 'them' },
@@ -65,8 +66,18 @@ export const TEAM_EVENTS = {
   puntoRival: { skill: 'rival', result: 'punto', point: 'them', label: 'Punto rival' },
   errorSaqueRival: { skill: 'rival', result: 'saque_error', point: 'us', label: 'Error de saque rival' },
   aceRival: { skill: 'rival', result: 'ace', point: 'them', label: 'Ace rival' },
+  // FREE propia: la envía un jugador en cualquier toque (recepción, defensa, colocación o ataque).
   freeBall: { skill: 'equipo', result: 'free', point: null, label: 'FREE' },
   freeRival: { skill: 'rival', result: 'free', point: null, label: 'FREE rival' },
+};
+
+// Toque en el que se produce una acción (según la fase del punto).
+export const TOUCH_LABEL = {
+  reception: 'Recepción',
+  defense: 'Defensa',
+  freeRecv: 'Recepción de FREE',
+  set: 'Colocación',
+  attack: 'Ataque',
 };
 
 export const skillById = (id) => SKILLS.find((s) => s.id === id);

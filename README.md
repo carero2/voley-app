@@ -16,7 +16,8 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - El líbero entra y sale solo por los centrales. Solo los delanteros pueden bloquear.
   - La app propone la siguiente acción: saque → defensa… o recepción → colocación → ataque → defensa… Se pueden saltar pasos y cerrar el punto en cualquier momento (*Error rival* / *Punto rival*).
   - Se guarda la zona en la que juega cada jugador y, tocando el campo rival, el destino del saque y del ataque, o desde dónde ataca el rival.
-  - Bolas **FREE** propias y del rival.
+  - Bolas **FREE** en cualquier toque (recepción, defensa, colocación o ataque) indicando quién la pasa, y FREE del rival con su zona de origen; tras una FREE rival la app pasa a «recepción de la FREE».
+  - En ataque se puede anotar punto por **Blockout**.
   - Plantilla del rival opcional (se guarda por equipo) para anotar quién saca o ataca.
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
@@ -25,7 +26,8 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Por posición.
   - Por rotación: side-out (puntos ganados recibiendo) y break (puntos ganados sacando) en R1–R6.
   - Por zonas: mapas de ataque (origen y destino), recepción y destino del saque, filtrables por jugador.
-  - Rival: zonas de ataque rival, bolas FREE (propias y del rival) y cómo acabaron, y estadísticas por jugador rival.
+  - FREE: cuántas pasamos, quién, en qué toque y en qué rotación, cómo terminan esos puntos (y cuántas acaban en punto directo del rival); de las FREE del rival, cómo las aprovechamos (resultado de nuestro primer ataque) y desde dónde llegan.
+  - Rival: zonas de ataque rival y estadísticas por jugador rival.
   - Por partido: resultado por sets, puntos propios, errores rivales y propios.
 - **Datos**: exportación e importación JSON (copia de seguridad), exportación CSV para Excel.
 - Funciona **sin conexión** (service worker) y se puede instalar en la pantalla de inicio.
@@ -35,10 +37,10 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
 
 | Métrica | Fórmula |
 |---|---|
-| Puntos | aces + ataques punto + bloqueos punto |
+| Puntos | aces + ataques punto (incluido blockout) + blocks |
 | Cedidos | errores que dan punto al rival (saque, recepción, ataque, bloqueado, bloqueo, defensa, colocación) |
 | Recepción positiva | (perfectas + buenas) / total |
-| Eficacia de ataque | (puntos − errores − bloqueados) / total |
+| Eficacia de ataque | (puntos + blockouts − errores − bloqueados) / total |
 | Eficacia de saque | (aces + positivos − errores) / total |
 
 ## Publicar en GitHub Pages

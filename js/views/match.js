@@ -359,7 +359,8 @@ function renderLive(el, match, st, rerender) {
   const sel = ui.selected ? playerById(ui.selected) : null;
   const selFront = isFront(played.find((c) => c.playerId === ui.selected)?.spot);
   const selectable = phase !== 'serve';
-  const rivalSelectable = ['serve', 'attack', 'defense'].includes(phase);
+  // Campo rival: destino de saque/ataque/FREE, o zona desde la que ataca el rival en defensa.
+  const rivalSelectable = true;
   const rivals = rivalPlayers(match.opponent);
   const showRivals = rivals.length > 0 && (phase === 'reception' || phase === 'defense');
   const recent = match.events.filter((e) => e.set === match.currentSet).slice(-6).reverse();
@@ -398,7 +399,8 @@ function renderLive(el, match, st, rerender) {
       ${courtHtml({
         cells, serving: st.serving, server, opponent: match.opponent, selectable, selected: ui.selected,
         rivalSelectable,
-        rivalLabel: phase === 'defense' ? '¿desde dónde ataca?' : phase === 'reception' ? 'saca' : rivalSelectable ? 'destino' : '',
+        rivalLabel: phase === 'defense' ? '¿desde dónde ataca?'
+          : ['serve', 'attack'].includes(phase) ? 'destino' : 'destino de la FREE',
         rivalZone: ui.rivalTap,
       })}
       <div class="court-foot">
@@ -444,7 +446,7 @@ function renderLive(el, match, st, rerender) {
       skill,
       result,
       phase,
-      zoneTo: phase === 'defense' ? null : ui.rivalTap,
+      zoneTo: phase !== 'defense' && (['saque', 'ataque'].includes(skill) || result === 'free') ? ui.rivalTap : null,
       rivalZone: phase === 'defense' ? ui.rivalTap : null,
       rivalPlayerId: showRivals ? ui.rivalPlayer : null,
     });
@@ -477,9 +479,12 @@ function renderLive(el, match, st, rerender) {
   }));
   el.querySelectorAll('[data-team]').forEach((b) => b.addEventListener('click', () => {
     const def = TEAM_EVENTS[b.dataset.team];
-    // El FREE propio se asocia al jugador seleccionado, si lo hay.
-    commit(def.skill, def.result, b.dataset.team === 'freeBall' ? ui.selected : null);
+    commit(def.skill, def.result, null);
   }));
+  el.querySelector('[data-free]')?.addEventListener('click', () => {
+    const def = TEAM_EVENTS.freeBall;
+    commit(def.skill, def.result, ui.selected);
+  });
   el.querySelector('[data-skip]')?.addEventListener('click', (e) => {
     ui.phase = e.currentTarget.dataset.skip;
     ui.selected = null;
@@ -519,6 +524,7 @@ function promptText(phase, sel) {
     case 'reception': return who ? `Recibe ${who}. ¿Cómo ha sido?` : 'Saca el rival: toca al jugador que recibe.';
     case 'set': return who ? `Coloca ${who}. ¿Cómo ha sido?` : 'Toca al jugador que coloca.';
     case 'attack': return who ? `Ataca ${who}. Marca el destino (opcional) y el resultado.` : 'Toca al atacante y, si quieres, la zona de destino.';
+    case 'freeRecv': return who ? `Recibe la FREE ${who}. ¿Cómo ha sido?` : 'El rival pasa FREE: toca a quien la recibe.';
     default: return who
       ? `${who}: ¿bloqueo o defensa? Marca también desde dónde ataca el rival (opcional).`
       : 'Ataca el rival: marca desde dónde (opcional) y toca a quien bloquea o defiende.';
@@ -538,20 +544,26 @@ function resultRow(skillId, enabled, label = null, note = '') {
 
 function actionButtons(phase, hasSel, selFront) {
   const extra = (key) => `<button class="btn tone-${TEAM_EVENTS[key].point === 'us' ? 'good' : TEAM_EVENTS[key].point ? 'error' : 'neutral'}" data-team="${key}">${TEAM_EVENTS[key].label}</button>`;
+  // FREE propia: el jugador seleccionado pasa el balón sin atacar, en cualquier toque.
+  const free = `<button class="btn tone-bad" data-free ${hasSel ? '' : 'disabled'}>FREE${hasSel ? '' : ' (toca al jugador)'}</button>`;
   switch (phase) {
     case 'serve':
       return resultRow('saque', hasSel)
         + '<p class="hint">Positivo: el rival recibe mal (sin ataque cómodo) · En juego: el rival recibe bien.</p>';
     case 'reception':
-      return resultRow('recepcion', hasSel) + `<div class="shortcuts">${extra('errorSaqueRival')}${extra('aceRival')}</div>`;
+      return resultRow('recepcion', hasSel)
+        + `<div class="shortcuts">${free}</div><div class="shortcuts">${extra('errorSaqueRival')}${extra('aceRival')}</div>`;
     case 'set':
-      return resultRow('colocacion', hasSel) + '<div class="shortcuts"><button class="btn" data-skip="attack">Saltar colocación →</button></div>';
+      return resultRow('colocacion', hasSel)
+        + `<div class="shortcuts">${free}<button class="btn" data-skip="attack">Saltar colocación →</button></div>`;
     case 'attack':
-      return resultRow('ataque', hasSel) + `<div class="shortcuts">${extra('freeBall')}</div>`;
+      return resultRow('ataque', hasSel) + `<div class="shortcuts">${free}</div>`;
+    case 'freeRecv':
+      return resultRow('defensa', hasSel, 'Recepción de la FREE') + `<div class="shortcuts">${free}</div>`;
     default:
       return resultRow('bloqueo', hasSel && selFront, 'Bloqueo', hasSel && !selFront ? '(solo delanteros)' : '')
         + resultRow('defensa', hasSel, 'Defensa')
-        + `<div class="shortcuts">${extra('freeRival')}</div>`;
+        + `<div class="shortcuts">${free}${extra('freeRival')}</div>`;
   }
 }
 
