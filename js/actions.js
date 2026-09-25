@@ -33,6 +33,8 @@ export const SKILLS = [
       { id: 'blockout', label: 'Blockout', tone: 'good', point: 'us' },
       { id: 'enjuego', label: 'En juego', tone: 'neutral', point: null },
       { id: 'bloqueado', label: 'Bloqueado', tone: 'bad', point: 'them' },
+      // Bloqueado pero el apoyo recupera el balón: el punto sigue.
+      { id: 'recuperado', label: 'Bloq. + apoyo', tone: 'ok', point: null },
       { id: 'error', label: 'Error', tone: 'error', point: 'them' },
     ],
   },
@@ -76,6 +78,7 @@ export const TOUCH_LABEL = {
   reception: 'Recepción',
   defense: 'Defensa',
   freeRecv: 'Recepción de FREE',
+  cover: 'Apoyo',
   set: 'Colocación',
   attack: 'Ataque',
 };

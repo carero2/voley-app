@@ -80,6 +80,8 @@ export function setState(match, setNum) {
     rally: 1,
     slots: setup ? [...setup.slots] : [],
     rallyEvents: [],
+    // Partidos antiguos (sin la opción) registraban siempre la colocación.
+    recordSet: match.recordSet ?? true,
   };
   for (const e of match.events) {
     if (e.set !== setNum) continue;
@@ -146,7 +148,7 @@ const NEXT = {
   saque: { positivo: 'defense', enjuego: 'defense' },
   recepcion: { perfecta: 'set', buena: 'set', mala: 'set' },
   colocacion: { buena: 'attack', mala: 'attack' },
-  ataque: { enjuego: 'defense' },
+  ataque: { enjuego: 'defense', recuperado: 'cover' },
   bloqueo: { toque: 'defense' },
   defensa: { buena: 'set', mala: 'set' },
   equipo: { free: 'defense' },
@@ -156,7 +158,9 @@ const NEXT = {
 export function currentPhase(st) {
   const last = st.rallyEvents.at(-1);
   if (!last) return st.serving === 'us' ? 'serve' : 'reception';
-  return NEXT[last.skill]?.[last.result] ?? 'defense';
+  const next = NEXT[last.skill]?.[last.result] ?? 'defense';
+  // Si no se registran colocaciones, se pasa directamente al ataque.
+  return next === 'set' && !st.recordSet ? 'attack' : next;
 }
 
 export const PHASES = {
@@ -166,6 +170,7 @@ export const PHASES = {
   attack: { label: 'Ataque', skill: 'ataque' },
   defense: { label: 'Defensa / bloqueo', skill: null },
   freeRecv: { label: 'FREE rival', skill: 'defensa' },
+  cover: { label: 'Apoyo', skill: 'defensa' },
 };
 
 // ---------- Posiciones de juego ----------

@@ -19,7 +19,8 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - La app propone la siguiente acción: saque → defensa… o recepción → colocación → ataque → defensa… Se pueden saltar pasos y cerrar el punto en cualquier momento (*Error rival* / *Punto rival*).
   - Se guarda la zona en la que juega cada jugador y, tocando el campo rival, el destino del saque y del ataque, o desde dónde ataca el rival.
   - Bolas **FREE** en cualquier toque (recepción, defensa, colocación o ataque) indicando quién la pasa, y FREE del rival con su zona de origen; tras una FREE rival la app pasa a «recepción de la FREE».
-  - En ataque se puede anotar punto por **Blockout**.
+  - En ataque se puede anotar punto por **Blockout**, y **Bloq. + apoyo** cuando nos bloquean y el apoyo recupera el balón (la app pasa a la fase de apoyo).
+  - **Colocaciones opcionales** (por defecto no se registran, para ir más rápido): se pasa de la recepción o defensa directamente al ataque y la colocación se asume buena; si fue mala o error se anota con un toque. Se puede activar al elegir la alineación o desde el menú del partido.
   - Plantilla del rival opcional (se guarda por equipo) para anotar quién saca o ataca.
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).

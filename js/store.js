@@ -58,6 +58,7 @@ function normalizeClub(c) {
     players: Array.isArray(c.players) ? c.players : [],
     matches: Array.isArray(c.matches) ? c.matches : [],
     rivals: c.rivals && typeof c.rivals === 'object' ? c.rivals : {},
+    settings: c.settings && typeof c.settings === 'object' ? c.settings : {},
   };
 }
 
@@ -240,6 +241,7 @@ export function createMatch({ opponent, date, place, bestOf, roster }) {
     roster,
     currentSet: 1,
     status: 'live',
+    recordSet: data.settings?.recordSet ?? false,
     sets: {},
     events: [],
   };
@@ -247,6 +249,13 @@ export function createMatch({ opponent, date, place, bestOf, roster }) {
   ensureRivalTeam(match.opponent);
   persist();
   return match;
+}
+
+// Registrar colocaciones: se guarda en el partido y queda como preferencia del club.
+export function setRecordSet(matchId, value) {
+  matchById(matchId).recordSet = value;
+  data.settings = { ...(data.settings || {}), recordSet: value };
+  persist();
 }
 
 export function updateMatch(id, fields) {

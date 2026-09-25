@@ -297,6 +297,11 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 .court-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .btn-small { min-height: 36px; padding: 6px 12px; font-size: .85rem; }
 .hint { margin: 0; font-size: .8rem; color: var(--text-2); }
+/* Con 6 resultados (ataque) los botones van en dos filas de tres */
+.skill-results .btn:first-child:nth-last-child(6),
+.skill-results .btn:first-child:nth-last-child(6) ~ .btn { flex-basis: calc(33.3% - 4px); }
+.set-note { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.set-note span { flex: 1 1 100%; }
 .rival-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip-btn {
   appearance: none; font: inherit; font-weight: 700; cursor: pointer; color: var(--text);
@@ -357,7 +362,7 @@ select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
 .skill-list { display: flex; flex-direction: column; gap: 12px; }
 .skill-row { display: flex; flex-direction: column; gap: 6px; }
 .skill-name { font-weight: 700; font-size: .85rem; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
-.skill-results { display: flex; gap: 6px; }
+.skill-results { display: flex; flex-wrap: wrap; gap: 6px; }
 .skill-results .btn { flex: 1 1 0; min-width: 0; }
 .skill-results .btn { min-height: 52px; padding: 6px 4px; font-size: .9rem; }
 

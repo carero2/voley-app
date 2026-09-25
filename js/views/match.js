@@ -1,14 +1,14 @@
 import {
   getData, activePlayers, playerById, matchById, createMatch, addEvent, undoLastEvent,
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
-  setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams,
+  setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
 } from '../store.js';
 import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent } from '../actions.js';
 import {
   SYSTEMS, buildSetup, setState, courtLayout, rotationOf, currentPhase, suggestedSetter, PHASES,
   formation, formationKind, isFront,
 } from '../rally.js';
-import { html, raw, openSheet, toast, vibrate, today, formatDate } from '../ui.js';
+import { html, raw, esc, openSheet, toast, vibrate, today, formatDate } from '../ui.js';
 import { openRivalEditor } from './rivals.js';
 
 // ---------- Nuevo partido ----------
@@ -239,6 +239,14 @@ function renderLineup(el, match, rerender) {
         </fieldset>` : ''}
 
       <fieldset class="field">
+        <span>Colocaciones</span>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="recordSet" value="no" ${match.recordSet === false ? 'checked' : ''} /><span>No registrar (más rápido)</span></label>
+          <label class="chip"><input type="radio" name="recordSet" value="yes" ${match.recordSet !== false ? 'checked' : ''} /><span>Registrar cada colocación</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="field">
         <span>Saca primero</span>
         <div class="chips">
           <label class="chip"><input type="radio" name="serveFirst" value="us" ${d.serveFirst === 'us' ? 'checked' : ''} /><span>${getData().team.name}</span></label>
@@ -293,6 +301,10 @@ function renderLineup(el, match, rerender) {
   }));
   el.querySelectorAll('input[name=rotation]').forEach((r) => r.addEventListener('change', () => { d.rotation = Number(r.value); rerender(); }));
   el.querySelectorAll('input[name=serveFirst]').forEach((r) => r.addEventListener('change', () => { d.serveFirst = r.value; rerender(); }));
+  el.querySelectorAll('input[name=recordSet]').forEach((r) => r.addEventListener('change', () => {
+    setRecordSet(match.id, r.value === 'yes');
+    rerender();
+  }));
   el.querySelector('#start').addEventListener('click', () => {
     setLineup(match.id, match.currentSet, draftSetup(d));
     ui.editLineup = false;
@@ -369,6 +381,7 @@ function renderLive(el, match, st, rerender) {
   else if (phase === 'set' && !ui.selected) ui.selected = suggestedSetter(st, posOf);
 
   const sel = ui.selected ? playerById(ui.selected) : null;
+  const setterPlayer = phase === 'attack' && !st.recordSet ? playerById(suggestedSetter(st, posOf)) : null;
   const selFront = isFront(played.find((c) => c.playerId === ui.selected)?.spot);
   const selectable = phase !== 'serve';
   // Campo rival: destino de saque/ataque/FREE, o zona desde la que ataca el rival en defensa.
@@ -432,7 +445,7 @@ function renderLive(el, match, st, rerender) {
           <span class="small muted">${phase === 'reception' ? 'Saca' : 'Ataca'}:</span>
           ${rivals.map((p) => html`<button class="chip-btn ${ui.rivalPlayer === p.id ? 'selected' : ''}" data-rival-player="${p.id}">${p.number}${p.name ? html` <small>${p.name}</small>` : ''}</button>`)}
         </div>` : ''}
-      ${raw(actionButtons(phase, Boolean(sel), selFront))}
+      ${raw(actionButtons(phase, Boolean(sel), selFront, { recordSet: st.recordSet, setter: setterPlayer }))}
       ${phase !== 'reception' ? html`
         <div class="shortcuts">
           <button class="btn tone-good" data-team="errorRival">＋ Error rival</button>
@@ -493,6 +506,9 @@ function renderLive(el, match, st, rerender) {
     const def = TEAM_EVENTS[b.dataset.team];
     commit(def.skill, def.result, null);
   }));
+  el.querySelectorAll('[data-set-result]').forEach((b) => b.addEventListener('click', () => {
+    commit('colocacion', b.dataset.setResult, setterPlayer.id);
+  }));
   el.querySelector('[data-free]')?.addEventListener('click', () => {
     const def = TEAM_EVENTS.freeBall;
     commit(def.skill, def.result, ui.selected);
@@ -537,6 +553,7 @@ function promptText(phase, sel) {
     case 'set': return who ? `Coloca ${who}. ¿Cómo ha sido?` : 'Toca al jugador que coloca.';
     case 'attack': return who ? `Ataca ${who}. Marca el destino (opcional) y el resultado.` : 'Toca al atacante y, si quieres, la zona de destino.';
     case 'freeRecv': return who ? `Recibe la FREE ${who}. ¿Cómo ha sido?` : 'El rival pasa FREE: toca a quien la recibe.';
+    case 'cover': return who ? `Apoyo de ${who}. ¿Cómo ha sido?` : 'Nos han bloqueado y el balón sigue: toca a quien hace el apoyo.';
     default: return who
       ? `${who}: ¿bloqueo o defensa? Marca también desde dónde ataca el rival (opcional).`
       : 'Ataca el rival: marca desde dónde (opcional) y toca a quien bloquea o defiende.';
@@ -554,7 +571,7 @@ function resultRow(skillId, enabled, label = null, note = '') {
     </div>`;
 }
 
-function actionButtons(phase, hasSel, selFront) {
+function actionButtons(phase, hasSel, selFront, { recordSet = true, setter = null } = {}) {
   const extra = (key) => `<button class="btn tone-${TEAM_EVENTS[key].point === 'us' ? 'good' : TEAM_EVENTS[key].point ? 'error' : 'neutral'}" data-team="${key}">${TEAM_EVENTS[key].label}</button>`;
   // FREE propia: el jugador seleccionado pasa el balón sin atacar, en cualquier toque.
   const free = `<button class="btn tone-bad" data-free ${hasSel ? '' : 'disabled'}>FREE${hasSel ? '' : ' (toca al jugador)'}</button>`;
@@ -569,9 +586,18 @@ function actionButtons(phase, hasSel, selFront) {
       return resultRow('colocacion', hasSel)
         + `<div class="shortcuts">${free}<button class="btn" data-skip="attack">Saltar colocación →</button></div>`;
     case 'attack':
-      return resultRow('ataque', hasSel) + `<div class="shortcuts">${free}</div>`;
+      return resultRow('ataque', hasSel) + `<div class="shortcuts">${free}</div>`
+        // Sin registrar colocaciones se asume buena; solo se anota si fue mala o error.
+        + (!recordSet && setter ? `
+          <div class="set-note">
+            <span class="small muted">Colocación de ${setter.number} ${esc(setter.name)} (si no fue buena):</span>
+            <button class="btn btn-small tone-bad" data-set-result="mala">Mala</button>
+            <button class="btn btn-small tone-error" data-set-result="error">Error</button>
+          </div>` : '');
     case 'freeRecv':
       return resultRow('defensa', hasSel, 'Recepción de la FREE') + `<div class="shortcuts">${free}</div>`;
+    case 'cover':
+      return resultRow('defensa', hasSel, 'Apoyo tras el bloqueo') + `<div class="shortcuts">${free}</div>`;
     default:
       return resultRow('bloqueo', hasSel && selFront, 'Bloqueo', hasSel && !selFront ? '(solo delanteros)' : '')
         + resultRow('defensa', hasSel, 'Defensa')
@@ -657,6 +683,7 @@ function openMatchMenu(match, st, rerender) {
       <button class="btn btn-block" id="m-sub" ${rallyStarted ? 'disabled' : ''}>Cambio de jugador</button>
       <button class="btn btn-block" id="m-lineup">Editar alineación${setStarted ? ' del set' : ''}</button>
       <button class="btn btn-block" id="m-close-set">Cerrar set ${match.currentSet} ahora</button>
+      <button class="btn btn-block" id="m-recordset">Registrar colocaciones: ${match.recordSet === false ? 'No' : 'Sí'}</button>
       <button class="btn btn-block" id="m-roster">Cambiar convocados</button>
       <button class="btn btn-block" id="m-rivals">Plantilla de ${match.opponent}</button>
       <a class="btn btn-block" href="#/estadisticas?m=${match.id}" data-close>Ver estadísticas</a>
@@ -682,6 +709,12 @@ function openMatchMenu(match, st, rerender) {
     closeSet(match.id);
     sheet.close();
     clearSelection();
+    rerender();
+  });
+  sheet.root.querySelector('#m-recordset').addEventListener('click', () => {
+    setRecordSet(match.id, match.recordSet === false);
+    sheet.close();
+    toast(match.recordSet ? 'Se registrarán las colocaciones' : 'Colocaciones: se asumen buenas');
     rerender();
   });
   sheet.root.querySelector('#m-roster').addEventListener('click', () => {
