@@ -25,7 +25,7 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
 - **Estadísticas** (filtrables por partido y set):
-  - Por jugador: puntos, puntos cedidos, saque (aces/errores), recepción positiva y perfecta, eficacia de ataque, bloqueos y defensas. Toca un jugador para ver su ficha completa.
+  - Por jugador: puntos, puntos cedidos, saque (aces/errores), recepción buena, eficacia de ataque, bloqueos y defensas. Toca un jugador para ver su ficha completa.
   - Por posición.
   - Por rotación: side-out (puntos ganados recibiendo) y break (puntos ganados sacando) en R1–R6.
   - Por zonas: mapas de ataque (origen y destino), recepción y destino del saque, filtrables por jugador.
@@ -43,9 +43,9 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
 |---|---|
 | Puntos | aces + ataques punto (incluido blockout) + blocks |
 | Cedidos | errores que dan punto al rival (saque, recepción, ataque, bloqueado, bloqueo, defensa, colocación) |
-| Recepción positiva | (perfectas + buenas) / total |
+| Recepción buena | buenas / total (recepción: buena, mala o error) |
 | Eficacia de ataque | (puntos + blockouts − errores − bloqueados) / total |
-| Eficacia de saque | (aces + positivos − errores) / total |
+| Eficacia de saque | (aces − errores) / total (saque: ace, en juego o error) |
 
 ## Publicar en GitHub Pages
 

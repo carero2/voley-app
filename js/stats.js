@@ -49,11 +49,11 @@ export function metrics(counts) {
     actions: SKILLS.reduce((acc, s) => acc + counts[s.id].total, 0),
     saque: {
       total: saque.total, ace: saque.ace, error: saque.error,
-      eff: ratio(saque.ace + saque.positivo - saque.error, saque.total),
+      eff: ratio(saque.ace - saque.error, saque.total),
     },
     recepcion: {
-      total: recepcion.total, perfecta: recepcion.perfecta, error: recepcion.error,
-      perfect: ratio(recepcion.perfecta, recepcion.total),
+      // «Perfecta» es un valor antiguo: cuenta como buena.
+      total: recepcion.total, buena: recepcion.buena + recepcion.perfecta, mala: recepcion.mala, error: recepcion.error,
       positive: ratio(recepcion.perfecta + recepcion.buena, recepcion.total),
     },
     ataque: {

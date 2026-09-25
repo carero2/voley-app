@@ -1,5 +1,5 @@
 import { getData, sortedMatches, playerById, setsSummary } from '../store.js';
-import { POSITIONS, positionById, TOUCH_LABEL, skillById } from '../actions.js';
+import { POSITIONS, positionById, TOUCH_LABEL, skillById, activeResults } from '../actions.js';
 import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, freeStats, pct } from '../stats.js';
 import { activePlayers, rivalPlayerById } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
@@ -211,10 +211,10 @@ function zonesTab(allEvents) {
     <div class="zone-cards">
       ${zoneCard('Ataque · zona de origen', zoneStats(events, 'ataque'), OUR_ORDER, 'puntos')}
       ${zoneCard('Ataque · destino en campo rival', zoneStats(events, 'ataque', 'zoneTo'), RIVAL_ORDER, 'puntos')}
-      ${zoneCard('Recepción · zona', zoneStats(events, 'recepcion'), OUR_ORDER, 'positivas')}
+      ${zoneCard('Recepción · zona', zoneStats(events, 'recepcion'), OUR_ORDER, 'buenas')}
       ${zoneCard('Saque · destino en campo rival', zoneStats(events, 'saque', 'zoneTo'), RIVAL_ORDER, 'aces')}
     </div>
-    <p class="muted small legend">Cada zona muestra el total de acciones; debajo, cuántas fueron buenas (puntos, aces o recepciones positivas). Cuanto más intenso el color, más acciones.</p>
+    <p class="muted small legend">Cada zona muestra el total de acciones; debajo, cuántas fueron buenas (puntos, aces o recepciones buenas). Cuanto más intenso el color, más acciones.</p>
   `;
 }
 
@@ -266,7 +266,7 @@ function freeTab(events) {
   const rotRows = (map) => [1, 2, 3, 4, 5, 6].filter((r) => map.has(r))
     .map((r) => [html`<b>R${r}</b>`, map.get(r).n, map.get(r).won, map.get(r).lost, rate(map.get(r).won, map.get(r).won + map.get(r).lost)]);
   const HEAD = ['FREE', 'Ganados', 'Perdidos', '% ganados'];
-  const attackResults = [...skillById('ataque').results.map((r) => [r.label, theirs.firstAttack[r.id] || 0]), ['Sin llegar a atacar', theirs.noAttack]];
+  const attackResults = [...activeResults(skillById('ataque')).map((r) => [r.label, theirs.firstAttack[r.id] || 0]), ['Sin llegar a atacar', theirs.noAttack]];
 
   return html`
     <section class="kpis">
@@ -420,8 +420,8 @@ function statsTable(rows, clickable) {
             <th>Pts${help('puntos')}</th>
             <th>Ced${help('cedidos')}</th>
             <th>Saque${help('saque')}<br><small>A/E/T</small></th>
-            <th>Rec${help('recPos')}<br><small>pos%</small></th>
-            <th>Rec${help('recPerf')}<br><small>perf%</small></th>
+            <th>Rec${help('recPos')}<br><small>buena%</small></th>
+            <th>Rec<br><small>B/M/E</small></th>
             <th>Ataque${help('ataque')}<br><small>P/T</small></th>
             <th>Ataque${help('efAtaque')}<br><small>efic.</small></th>
             <th title="Bloqueos punto (block)">Block</th>
@@ -436,7 +436,7 @@ function statsTable(rows, clickable) {
               <td>${r.m.given}</td>
               <td>${r.m.saque.ace}/${r.m.saque.error}/${r.m.saque.total}</td>
               <td>${pct(r.m.recepcion.positive)}</td>
-              <td>${pct(r.m.recepcion.perfect)}</td>
+              <td>${r.m.recepcion.buena}/${r.m.recepcion.mala}/${r.m.recepcion.error}</td>
               <td>${r.m.ataque.punto}/${r.m.ataque.total}</td>
               <td class="${effClass(r.m.ataque.eff)}">${pct(r.m.ataque.eff)}</td>
               <td>${r.m.bloqueo.punto}</td>
@@ -487,7 +487,7 @@ function playerDetail(playerId, events) {
       <div><dt>Balance${help('balance')}</dt><dd>${m.balance > 0 ? '+' : ''}${m.balance}</dd></div>
     </dl>
     ${block('Saque', [['Total', m.saque.total], ['Aces', m.saque.ace], ['Errores', m.saque.error], ['Eficacia', pct(m.saque.eff), 'efSaque']])}
-    ${block('Recepción', [['Total', m.recepcion.total], ['Perfectas', m.recepcion.perfecta], ['Positiva', pct(m.recepcion.positive), 'recPos'], ['Errores', m.recepcion.error]])}
+    ${block('Recepción', [['Total', m.recepcion.total], ['Buenas', m.recepcion.buena], ['Malas', m.recepcion.mala], ['Errores', m.recepcion.error], ['% buenas', pct(m.recepcion.positive), 'recPos']])}
     ${block('Ataque', [['Total', m.ataque.total], ['Puntos', m.ataque.punto], ['Blockouts', m.ataque.blockout], ['Errores', m.ataque.error], ['Bloqueados', m.ataque.bloqueado], ['% Punto', pct(m.ataque.kill), 'killAtaque'], ['Eficacia', pct(m.ataque.eff), 'efAtaque']])}
     ${block('Bloqueo', [['Block', m.bloqueo.punto], ['Toques', m.bloqueo.toque], ['Blockout', m.bloqueo.error]])}
     ${block('Defensa', [['Total', m.defensa.total], ['Buenas', m.defensa.buena], ['Errores', m.defensa.error]])}

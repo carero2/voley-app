@@ -3,7 +3,7 @@ import {
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
   setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
 } from '../store.js';
-import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent } from '../actions.js';
+import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent, activeResults } from '../actions.js';
 import {
   SYSTEMS, buildSetup, setState, courtLayout, rotationOf, currentPhase, suggestedSetter, PHASES,
   formation, formationKind, isFront,
@@ -566,7 +566,7 @@ function resultRow(skillId, enabled, label = null, note = '') {
     <div class="result-row">
       ${label ? `<span class="skill-name">${label}${note ? ` <small class="muted">${note}</small>` : ''}</span>` : ''}
       <div class="skill-results">
-        ${s.results.map((r) => `<button class="btn tone-${r.tone}" data-skill="${s.id}" data-result="${r.id}" ${enabled ? '' : 'disabled'}>${r.label}</button>`).join('')}
+        ${activeResults(s).map((r) => `<button class="btn tone-${r.tone}" data-skill="${s.id}" data-result="${r.id}" ${enabled ? '' : 'disabled'}>${r.label}</button>`).join('')}
       </div>
     </div>`;
 }
@@ -577,8 +577,7 @@ function actionButtons(phase, hasSel, selFront, { recordSet = true, setter = nul
   const free = `<button class="btn tone-bad" data-free ${hasSel ? '' : 'disabled'}>FREE${hasSel ? '' : ' (toca al jugador)'}</button>`;
   switch (phase) {
     case 'serve':
-      return resultRow('saque', hasSel)
-        + '<p class="hint">Positivo: el rival recibe mal (sin ataque cómodo) · En juego: el rival recibe bien.</p>';
+      return resultRow('saque', hasSel);
     case 'reception':
       return resultRow('recepcion', hasSel)
         + `<div class="shortcuts">${free}</div><div class="shortcuts">${extra('errorSaqueRival')}${extra('aceRival')}</div>`;
@@ -657,7 +656,7 @@ function openActionSheet(player, onPick) {
         <div class="skill-row">
           <span class="skill-name">${s.label}</span>
           <div class="skill-results">
-            ${s.results.map((r) => html`
+            ${activeResults(s).map((r) => html`
               <button class="btn tone-${r.tone}" data-pick-skill="${s.id}" data-pick-result="${r.id}">${r.label}</button>
             `)}
           </div>

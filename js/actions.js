@@ -14,17 +14,19 @@ export const SKILLS = [
   {
     id: 'saque', label: 'Saque', results: [
       { id: 'ace', label: 'Ace', tone: 'good', point: 'us' },
-      { id: 'positivo', label: 'Positivo', tone: 'ok', point: null },
       { id: 'enjuego', label: 'En juego', tone: 'neutral', point: null },
       { id: 'error', label: 'Error', tone: 'error', point: 'them' },
+      // Valor antiguo: ya no se ofrece, pero se conserva para leer datos registrados antes.
+      { id: 'positivo', label: 'Positivo', tone: 'ok', point: null, legacy: true },
     ],
   },
   {
     id: 'recepcion', label: 'Recepción', results: [
-      { id: 'perfecta', label: 'Perfecta', tone: 'good', point: null },
-      { id: 'buena', label: 'Buena', tone: 'ok', point: null },
+      { id: 'buena', label: 'Buena', tone: 'good', point: null },
       { id: 'mala', label: 'Mala', tone: 'bad', point: null },
       { id: 'error', label: 'Error', tone: 'error', point: 'them' },
+      // Valor antiguo (antes había «Perfecta» y «Buena»): cuenta como recepción buena.
+      { id: 'perfecta', label: 'Perfecta', tone: 'good', point: null, legacy: true },
     ],
   },
   {
@@ -82,6 +84,9 @@ export const TOUCH_LABEL = {
   set: 'Colocación',
   attack: 'Ataque',
 };
+
+// Resultados que se ofrecen al registrar (sin los antiguos).
+export const activeResults = (skill) => skill.results.filter((r) => !r.legacy);
 
 export const skillById = (id) => SKILLS.find((s) => s.id === id);
 export const positionById = (id) => POSITIONS.find((p) => p.id === id);
