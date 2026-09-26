@@ -18,6 +18,17 @@
 6. **Revisión** (`#/partido/<id>/voz`): audio, texto editable, plantilla, corrección manual y
    porcentaje de acciones completas.
 
+## Dos métodos de dictado (se elige en la pantalla del partido)
+
+- **Grabar (Groq):** se graba el audio de cada punto y se transcribe en segundo plano. Guarda el audio
+  (se puede escuchar y reprocesar) y usa el vocabulario y los nombres de la plantilla. Necesita conexión
+  para transcribir (los audios esperan si no la hay).
+- **Teclado del móvil:** se dicta con el micrófono del teclado (Gboard, dictado de iOS) en un cuadro de
+  texto; al cerrar el punto se analiza al momento, sin Groq ni internet si el teclado tiene el
+  reconocimiento sin conexión activado. No guarda audio.
+
+La revisión muestra el % de acciones completas de cada método para compararlos con datos reales.
+
 ## Cómo hablar
 
 No hace falta un orden fijo. El analizador reconoce por palabras clave:

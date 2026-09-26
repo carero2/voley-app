@@ -12,7 +12,8 @@ let busy = false;
 let timer = null;
 
 export const onVoiceChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
-const notify = () => listeners.forEach((fn) => { try { fn(); } catch { /* vista ya cerrada */ } });
+// Se recorre una copia: una vista que se vuelve a suscribir al redibujarse no entra en bucle.
+const notify = () => [...listeners].forEach((fn) => { try { fn(); } catch { /* vista ya cerrada */ } });
 
 export function startQueue() {
   if (timer) return;

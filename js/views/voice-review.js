@@ -37,6 +37,8 @@ export function renderVoiceReview(el, { id }) {
       <p><b>${rallies.length}</b> puntos con registro de voz · <b>${stats.actions}</b> acciones entendidas</p>
       <p class="small muted">Acciones completas (acción + jugador + resultado): <b>${stats.pctComplete}</b> ·
         palabras no reconocidas: <b>${stats.unknown}</b></p>
+      ${Object.keys(stats.byMethod).length > 1 ? html`<p class="small muted">Por método de dictado:
+        ${Object.entries(stats.byMethod).map(([k, v]) => `${k === 'teclado' ? 'Teclado' : 'Groq'} ${v.pct} (${v.actions} acciones)`).join(' · ')}</p>` : ''}
       ${hasTranscriber() ? '' : html`<p class="small">Para transcribir los audios configura la clave en <a href="#/datos">Datos → Registro por voz</a>. Mientras, puedes escribir el texto de cada punto.</p>`}
       <div class="form-actions">
         <button class="btn" id="retry">Reintentar pendientes</button>
@@ -76,6 +78,7 @@ export function renderVoiceReview(el, { id }) {
   el.querySelectorAll('[data-analyze]').forEach((b) => b.addEventListener('click', () => {
     const key = b.dataset.analyze;
     const text = el.querySelector(`textarea[data-key="${key}"]`).value;
+    unsub?.(); // el redibujado lo hacemos aquí una sola vez
     processText(match.id, key, text);
     toast('Punto analizado');
     rerender();
@@ -140,15 +143,21 @@ function lossStats(metas) {
   let actions = 0;
   let complete = 0;
   let unknown = 0;
+  const byMethod = {};
+  const pct = (c, n) => (n ? `${Math.round((c / n) * 100)}%` : '–');
   for (const m of metas) {
+    const method = m.method ?? 'groq';
+    byMethod[method] ??= { actions: 0, complete: 0 };
     for (const a of m.actions || []) {
       if (a.auto) continue;
       actions++;
-      if (!missingFields(a).length) complete++;
+      byMethod[method].actions++;
+      if (!missingFields(a).length) { complete++; byMethod[method].complete++; }
     }
     unknown += m.unknown?.length ?? 0;
   }
-  return { actions, unknown, pctComplete: actions ? `${Math.round((complete / actions) * 100)}%` : '–' };
+  Object.values(byMethod).forEach((v) => { v.pct = pct(v.complete, v.actions); });
+  return { actions, unknown, pctComplete: pct(complete, actions), byMethod };
 }
 
 // Editor de las acciones de un punto.

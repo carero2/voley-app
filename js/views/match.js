@@ -13,8 +13,8 @@ import { html, raw, esc, openSheet, toast, vibrate, today, formatDate } from '..
 import { openRivalEditor } from './rivals.js';
 import * as recorder from '../voice/recorder.js';
 import { putAudio, deleteAudio, audioId } from '../voice/db.js';
-import { kickQueue, onVoiceChange, voiceSummary } from '../voice/queue.js';
-import { hasTranscriber } from '../voice/transcribe.js';
+import { kickQueue, onVoiceChange, voiceSummary, processText } from '../voice/queue.js';
+import { hasTranscriber, dictationMethod, saveVoiceSettings } from '../voice/transcribe.js';
 
 // ---------- Nuevo partido ----------
 
@@ -636,6 +636,7 @@ function renderVoiceLive(el, match, st, rerender) {
   const server = st.serving === 'us' ? playerById(layout[0].playerId) : null;
   const recording = recorder.isRecording();
   const supported = recorder.isSupported();
+  const keyboard = dictationMethod() === 'teclado';
   const rallies = Object.entries(match.voice || {})
     .filter(([, m]) => m.set === match.currentSet)
     .sort((a, b) => b[1].rally - a[1].rally)
@@ -671,17 +672,26 @@ function renderVoiceLive(el, match, st, rerender) {
         <button class="btn btn-primary" id="close-set">Cerrar set</button>
       </div>` : ''}
 
-    <section class="court-wrap">
-      ${courtHtml({
-        cells: formation(st, 'serve', 'base'),
-        serving: st.serving,
-        server: server?.id ?? null,
-        opponent: match.opponent,
-      })}
-    </section>
+    ${keyboard ? '' : html`
+      <section class="court-wrap">
+        ${courtHtml({
+          cells: formation(st, 'serve', 'base'),
+          serving: st.serving,
+          server: server?.id ?? null,
+          opponent: match.opponent,
+        })}
+      </section>`}
 
     <section class="panel voice-panel">
-      ${supported ? html`
+      <div class="method-switch small">
+        Dictado:
+        <button class="chip-btn ${keyboard ? '' : 'selected'}" data-method="groq">Grabar (Groq)</button>
+        <button class="chip-btn ${keyboard ? 'selected' : ''}" data-method="teclado">Teclado del móvil</button>
+      </div>
+      ${keyboard ? html`
+        <textarea id="rally-text" class="rally-text" rows="3" autocomplete="off"
+          placeholder="Toca aquí y pulsa el micrófono del teclado para dictar el punto"></textarea>`
+      : supported ? html`
         <button class="btn btn-block rec-btn ${recording ? 'is-recording' : ''}" id="rec">
           ${recording ? html`<span class="rec-dot"></span> Grabando <span id="rec-time">${recorder.recordingSeconds()}s</span>` : '🎙 Iniciar punto'}
         </button>` : html`<p class="hint">Este navegador no permite grabar audio: puedes llevar el marcador y escribir el detalle en la revisión.</p>`}
@@ -707,7 +717,9 @@ function renderVoiceLive(el, match, st, rerender) {
 
     <section class="log">
       <h2>Últimos puntos dictados</h2>
-      ${rallies.length === 0 ? html`<p class="muted small">Pulsa «Iniciar punto», di lo que pasa (p. ej. «Carlos recibe bien, el punta ataca por 4, punto») y cierra el punto con su botón.</p>` : ''}
+      ${rallies.length === 0 ? html`<p class="muted small">${keyboard
+        ? 'Dicta el punto en el cuadro con el micrófono del teclado (p. ej. «Carlos recibe bien, el punta ataca por 4, punto») y ciérralo con su botón.'
+        : 'Pulsa «Iniciar punto», di lo que pasa (p. ej. «Carlos recibe bien, el punta ataca por 4, punto») y cierra el punto con su botón.'}</p>` : ''}
       <ol class="log-list">
         ${rallies.map(([key, m]) => html`
           <li class="log-item">
@@ -726,7 +738,7 @@ function renderVoiceLive(el, match, st, rerender) {
     const parts = [`${s.done} procesados`];
     if (s.pending) parts.push(`${s.pending} en cola`);
     if (s.error) parts.push(`${s.error} con error`);
-    if (!hasTranscriber()) parts.push('falta configurar la transcripción (Datos → Registro por voz)');
+    if (!keyboard && !hasTranscriber()) parts.push('falta configurar la transcripción (Datos → Registro por voz)');
     else if (!navigator.onLine) parts.push('sin conexión: se procesarán al volver');
     box.textContent = `Voz: ${parts.join(' · ')}`;
   };
@@ -755,6 +767,11 @@ function renderVoiceLive(el, match, st, rerender) {
     });
   };
 
+  el.querySelectorAll('[data-method]').forEach((b) => b.addEventListener('click', () => {
+    if (recorder.isRecording()) recorder.cancelRecording();
+    saveVoiceSettings({ method: b.dataset.method });
+    rerender();
+  }));
   el.querySelector('#rec')?.addEventListener('click', async () => {
     if (recorder.isRecording()) return;
     try {
@@ -771,9 +788,12 @@ function renderVoiceLive(el, match, st, rerender) {
     const key = voiceKeyOf(match.currentSet, st.rally);
     const wasRecording = recorder.isRecording();
     const def = b.dataset.closeRally === 'us' ? TEAM_EVENTS.rallyUs : TEAM_EVENTS.rallyThem;
+    const typed = el.querySelector('#rally-text')?.value.trim() ?? '';
     addEvent(match.id, { skill: def.skill, result: def.result });
-    setVoice(match.id, key, { set: match.currentSet, rally: st.rally, status: wasRecording ? 'recording' : 'noaudio', t: Date.now() });
+    setVoice(match.id, key, { set: match.currentSet, rally: st.rally, status: wasRecording ? 'recording' : 'noaudio', t: Date.now(), method: keyboard ? 'teclado' : 'groq' });
     if (wasRecording) stopAndStore(key);
+    // Dictado con el teclado: el texto ya está, se analiza al momento (sin internet).
+    else if (keyboard && typed) processText(match.id, key, typed);
     vibrate();
     rerender();
   }));

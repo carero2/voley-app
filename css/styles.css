@@ -432,6 +432,12 @@ select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
 
 /* ---------- Modo voz ---------- */
 .voice-panel { gap: 12px; }
+.method-switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--text-2); }
+.method-switch .chip-btn { min-height: 34px; font-size: .8rem; }
+.rally-text {
+  font: inherit; font-size: 1rem; color: var(--text); background: var(--surface); width: 100%;
+  border: 2px solid var(--primary); border-radius: 12px; padding: 10px 12px; resize: none;
+}
 .rec-btn { min-height: 64px; font-size: 1.15rem; background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .rec-btn.is-recording { background: var(--error); border-color: var(--error); color: #fff; }
 .rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; animation: pulse 1s infinite; }
