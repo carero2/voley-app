@@ -24,6 +24,11 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Plantilla del rival opcional (se guarda por equipo) para anotar quién saca o ataca.
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
+- **Registro por voz** (modo alternativo al crear el partido, ver [docs/voz.md](docs/voz.md)):
+  - Marcador y rotación en directo con botones (*Iniciar punto*, *Punto propio*, *Punto rival*, *Ace*, *Error de saque*).
+  - El detalle de cada punto se dicta; el audio se transcribe en segundo plano con Groq (Whisper, gratis hasta ~8 h/día) y un analizador lo convierte en acciones, entendiendo nombres, dorsales y puestos («el punta», «la central delantera») según la rotación.
+  - Sin conexión el partido sigue igual: los audios esperan en el móvil y se procesan al volver la conexión.
+  - Pantalla de revisión con audio, texto, plantilla, corrección y porcentaje de información completa.
 - **Estadísticas** (filtrables por partido y set):
   - Por jugador: puntos, puntos cedidos, saque (aces/errores), recepción buena, eficacia de ataque, bloqueos y defensas. Toca un jugador para ver su ficha completa.
   - Por posición.
@@ -74,6 +79,9 @@ js/rally.js           Sistemas, rotaciones, líbero y fases de cada punto
 js/stats.js           Cálculo de estadísticas
 js/ui.js              Utilidades (plantillas HTML, hojas, avisos)
 js/help.js            Textos de ayuda de las métricas
+js/voice/             Registro por voz: grabación, audios (IndexedDB), transcripción, cola y analizador
+tests/                Pruebas del analizador de voz (node tests/parser.test.mjs)
+docs/voz.md           Cómo funciona y cómo ampliar el registro por voz
 js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, datos, clubes, rivales
 sw.js                 Service worker (uso sin conexión)
 ```

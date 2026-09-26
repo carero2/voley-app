@@ -6,11 +6,15 @@ import { renderStats } from './views/stats.js';
 import { renderData } from './views/data.js';
 import { renderClubBar } from './views/clubs.js';
 import { showHelp } from './help.js';
+import { renderVoiceReview } from './views/voice-review.js';
+import { startQueue } from './voice/queue.js';
+import { releaseMic } from './voice/recorder.js';
 
 const routes = [
   { pattern: /^\/$/, view: renderHome, tab: 'partidos' },
   { pattern: /^\/equipo$/, view: renderTeam, tab: 'equipo' },
   { pattern: /^\/partido\/nuevo$/, view: renderNewMatch, tab: 'partidos' },
+  { pattern: /^\/partido\/(?<id>[\w-]+)\/voz$/, view: renderVoiceReview, tab: 'partidos' },
   { pattern: /^\/partido\/(?<id>[\w-]+)$/, view: renderMatch, tab: 'partidos', live: true },
   { pattern: /^\/estadisticas$/, view: renderStats, tab: 'estadisticas' },
   { pattern: /^\/datos$/, view: renderData, tab: 'datos' },
@@ -29,6 +33,8 @@ function router() {
     a.classList.toggle('active', a.dataset.tab === route.tab),
   );
   document.body.classList.toggle('is-live', Boolean(route.live));
+  // Fuera del partido en directo se libera el micrófono.
+  if (!route.live) releaseMic();
   document.getElementById('sheet-root').hidden = true;
   renderClubBar(document.getElementById('club-bar'), onClubChange);
   route.view(main, params);
@@ -52,6 +58,8 @@ document.addEventListener('click', (e) => {
 
 window.addEventListener('hashchange', router);
 router();
+// Cola de transcripción en segundo plano (registro por voz).
+startQueue();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW no registrado', err));

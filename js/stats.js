@@ -21,7 +21,8 @@ export function filterEvents(matches, { matchIds = null, set = null } = {}) {
 export function countsBy(events, keyFn) {
   const groups = new Map();
   for (const e of events) {
-    if (!e.playerId || e.skill === 'rival') continue;
+    // Sin jugador o sin resultado (p. ej. dictado incompleto) no cuenta en las estadísticas individuales.
+    if (!e.playerId || e.skill === 'rival' || !e.result) continue;
     const key = keyFn(e);
     if (key == null || !SKILLS.some((s) => s.id === e.skill)) continue;
     if (!groups.has(key)) groups.set(key, { counts: emptyCounts(), matches: new Set() });
@@ -76,8 +77,16 @@ export function metrics(counts) {
 
 // Resumen de puntos del equipo: de dónde vienen los puntos ganados y cedidos.
 export function teamSummary(events) {
-  const s = { won: 0, lost: 0, ownPoints: 0, rivalErrors: 0, ownErrors: 0, rivalPoints: 0 };
+  const s = { won: 0, lost: 0, ownPoints: 0, rivalErrors: 0, ownErrors: 0, rivalPoints: 0, unknownWon: 0, unknownLost: 0 };
+  // Puntos cerrados con botón (modo voz): el origen sale de lo dictado, si se entendió.
+  const CAUSE = { own: 'ownPoints', rivalError: 'rivalErrors', ownError: 'ownErrors', rivalPoint: 'rivalPoints' };
   for (const e of events) {
+    if (e.skill === 'cierre') {
+      if (e.point === 'us') s.won++; else s.lost++;
+      if (CAUSE[e.cause]) s[CAUSE[e.cause]]++;
+      else if (e.point === 'us') s.unknownWon++; else s.unknownLost++;
+      continue;
+    }
     if (e.point === 'us') {
       s.won++;
       if (e.skill === 'rival') s.rivalErrors++; else s.ownPoints++;

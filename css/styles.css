@@ -430,6 +430,34 @@ select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
 .detail-block { margin-top: 16px; }
 .detail-block .mini-stats { margin-top: 0; }
 
+/* ---------- Modo voz ---------- */
+.voice-panel { gap: 12px; }
+.rec-btn { min-height: 64px; font-size: 1.15rem; background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.rec-btn.is-recording { background: var(--error); border-color: var(--error); color: #fff; }
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.voice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.voice-chip { font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+.voice-chip.st-applied, .voice-chip.st-parsed { background: var(--good-bg); color: var(--good); }
+.voice-chip.st-recorded, .voice-chip.st-transcribing, .voice-chip.st-recording { background: var(--ok-bg); color: var(--ok); }
+.voice-chip.st-error { background: var(--error-bg); color: var(--error); }
+.voice-card { display: flex; flex-direction: column; gap: 8px; }
+.voice-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.voice-head b { flex: 1; }
+.voice-card textarea {
+  font: inherit; color: var(--text); background: var(--surface); width: 100%;
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; resize: vertical;
+}
+.template { display: flex; flex-direction: column; gap: 4px; }
+.template-line { font-size: .9rem; padding: 4px 8px; border-left: 3px solid var(--good); background: var(--surface-2); border-radius: 6px; }
+.template-line.incomplete { border-left-color: var(--bad); }
+.t-skill { font-weight: 700; margin-right: 4px; }
+.error-text { color: var(--error); margin: 0; }
+.action-row { display: grid; grid-template-columns: 1fr 1fr 44px; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.action-row select { min-height: 40px; padding: 4px 8px; }
+.action-row [data-remove] { grid-column: 3; grid-row: 1; }
+@media (min-width: 700px) { .action-row { grid-template-columns: 110px 1fr 1fr 1fr 80px 44px; } .action-row [data-remove] { grid-column: auto; grid-row: auto; } }
+
 /* ---------- Club activo ---------- */
 .club-bar { max-width: 960px; margin: 0 auto; padding: calc(10px + env(safe-area-inset-top)) 16px 0; display: flex; flex-direction: column; gap: 8px; }
 .club-bar + .container { padding-top: 12px; }

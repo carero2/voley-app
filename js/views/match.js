@@ -2,6 +2,7 @@ import {
   getData, activePlayers, playerById, matchById, createMatch, addEvent, undoLastEvent,
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
   setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
+  setMatchMode, setVoice, voiceKeyOf,
 } from '../store.js';
 import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent, activeResults } from '../actions.js';
 import {
@@ -10,6 +11,10 @@ import {
 } from '../rally.js';
 import { html, raw, esc, openSheet, toast, vibrate, today, formatDate } from '../ui.js';
 import { openRivalEditor } from './rivals.js';
+import * as recorder from '../voice/recorder.js';
+import { putAudio, deleteAudio, audioId } from '../voice/db.js';
+import { kickQueue, onVoiceChange, voiceSummary } from '../voice/queue.js';
+import { hasTranscriber } from '../voice/transcribe.js';
 
 // ---------- Nuevo partido ----------
 
@@ -41,6 +46,13 @@ export function renderNewMatch(el) {
           <input name="place" autocomplete="off" placeholder="Opcional" />
         </label>
       </div>
+      <fieldset class="field">
+        <span>Modo de registro</span>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="mode" value="toques" checked /><span>Toques (detallado)</span></label>
+          <label class="chip"><input type="radio" name="mode" value="voz" /><span>Voz (rápido)</span></label>
+        </div>
+      </fieldset>
       <fieldset class="field">
         <span>Formato</span>
         <div class="chips">
@@ -82,6 +94,7 @@ export function renderNewMatch(el) {
       place: fd.get('place'),
       bestOf: fd.get('bestOf'),
       roster,
+      mode: fd.get('mode'),
     });
     location.hash = `#/partido/${m.id}`;
   });
@@ -112,6 +125,7 @@ export function renderMatch(el, { id }) {
 
   const st = setState(match, match.currentSet);
   if (!st.setup || ui.editLineup) return renderLineup(el, match, rerender);
+  if (match.mode === 'voz') return renderVoiceLive(el, match, st, rerender);
   return renderLive(el, match, st, rerender);
 }
 
@@ -604,6 +618,206 @@ function actionButtons(phase, hasSel, selFront, { recordSet = true, setter = nul
   }
 }
 
+// ---------- Partido en directo: modo voz ----------
+// Marcador y rotación se llevan en directo con botones; el detalle de cada punto se dicta
+// y se procesa en segundo plano (ver js/voice/queue.js).
+
+let recTimer = null;
+let unsubVoice = null;
+
+function renderVoiceLive(el, match, st, rerender) {
+  clearInterval(recTimer);
+  unsubVoice?.();
+  const teamName = getData().team.name;
+  const winner = setWinner(match, match.currentSet);
+  const { sets, won, lost } = setsSummary(match);
+  const rot = rotationOf(st);
+  const layout = courtLayout(st);
+  const server = st.serving === 'us' ? playerById(layout[0].playerId) : null;
+  const recording = recorder.isRecording();
+  const supported = recorder.isSupported();
+  const rallies = Object.entries(match.voice || {})
+    .filter(([, m]) => m.set === match.currentSet)
+    .sort((a, b) => b[1].rally - a[1].rally)
+    .slice(0, 5);
+
+  el.innerHTML = html`
+    <header class="page-head with-back live-head">
+      <a class="back" href="#/" aria-label="Volver">‹</a>
+      <h1>vs ${match.opponent}</h1>
+      <button class="btn btn-ghost" id="menu" aria-label="Opciones">⋯</button>
+    </header>
+
+    <section class="scoreboard">
+      <div class="sb-team">
+        <span class="sb-name">${st.serving === 'us' ? '🏐 ' : ''}${teamName}</span>
+        <span class="sb-score">${st.us}</span>
+      </div>
+      <div class="sb-mid">
+        <span class="sb-set">Set ${match.currentSet}</span>
+        <span class="sb-sets">${won} - ${lost}</span>
+        <span class="sb-rot">R${rot}</span>
+      </div>
+      <div class="sb-team">
+        <span class="sb-name">${st.serving === 'them' ? '🏐 ' : ''}${match.opponent}</span>
+        <span class="sb-score">${st.them}</span>
+      </div>
+      ${sets.length ? html`<span class="sb-prev">${sets.map((s) => `${s.us}-${s.them}`).join(' · ')}</span>` : ''}
+    </section>
+
+    ${winner ? html`
+      <div class="banner ${winner === 'us' ? 'banner-good' : 'banner-bad'}">
+        <span>${winner === 'us' ? '¡Set ganado!' : 'Set perdido'} (${st.us}-${st.them})</span>
+        <button class="btn btn-primary" id="close-set">Cerrar set</button>
+      </div>` : ''}
+
+    <section class="court-wrap">
+      ${courtHtml({
+        cells: formation(st, 'serve', 'base'),
+        serving: st.serving,
+        server: server?.id ?? null,
+        opponent: match.opponent,
+      })}
+    </section>
+
+    <section class="panel voice-panel">
+      ${supported ? html`
+        <button class="btn btn-block rec-btn ${recording ? 'is-recording' : ''}" id="rec">
+          ${recording ? html`<span class="rec-dot"></span> Grabando <span id="rec-time">${recorder.recordingSeconds()}s</span>` : '🎙 Iniciar punto'}
+        </button>` : html`<p class="hint">Este navegador no permite grabar audio: puedes llevar el marcador y escribir el detalle en la revisión.</p>`}
+
+      <div class="voice-grid">
+        <button class="btn btn-lg tone-good" data-close-rally="us">＋ Punto propio</button>
+        <button class="btn btn-lg tone-error" data-close-rally="them">− Punto rival</button>
+        ${st.serving === 'us'
+          ? html`
+            <button class="btn tone-good" data-serve="ace">Ace${server ? ` · ${server.number}` : ''}</button>
+            <button class="btn tone-error" data-serve="error">Error de saque${server ? ` · ${server.number}` : ''}</button>`
+          : html`
+            <button class="btn tone-error" data-team="aceRival">Ace rival</button>
+            <button class="btn tone-good" data-team="errorSaqueRival">Error de saque rival</button>`}
+      </div>
+
+      <div class="shortcuts">
+        <button class="btn" id="undo" ${match.events.length || match.currentSet > 1 ? '' : 'disabled'}>↶ Deshacer</button>
+        <a class="btn" href="#/partido/${match.id}/voz">Revisión de voz</a>
+      </div>
+      <p class="small muted" id="voice-status"></p>
+    </section>
+
+    <section class="log">
+      <h2>Últimos puntos dictados</h2>
+      ${rallies.length === 0 ? html`<p class="muted small">Pulsa «Iniciar punto», di lo que pasa (p. ej. «Carlos recibe bien, el punta ataca por 4, punto») y cierra el punto con su botón.</p>` : ''}
+      <ol class="log-list">
+        ${rallies.map(([key, m]) => html`
+          <li class="log-item">
+            <span class="voice-chip st-${m.status}">${VOICE_STATUS[m.status] ?? m.status}</span>
+            <span class="grow small">${m.transcript || (m.status === 'noaudio' ? 'Sin audio' : '…')}</span>
+            <span class="muted small">${key.split('-')[1]}</span>
+          </li>`)}
+      </ol>
+    </section>
+  `;
+
+  const updateStatus = () => {
+    const box = el.querySelector('#voice-status');
+    if (!box) return;
+    const s = voiceSummary(match);
+    const parts = [`${s.done} procesados`];
+    if (s.pending) parts.push(`${s.pending} en cola`);
+    if (s.error) parts.push(`${s.error} con error`);
+    if (!hasTranscriber()) parts.push('falta configurar la transcripción (Datos → Registro por voz)');
+    else if (!navigator.onLine) parts.push('sin conexión: se procesarán al volver');
+    box.textContent = `Voz: ${parts.join(' · ')}`;
+  };
+  updateStatus();
+  unsubVoice = onVoiceChange(() => {
+    if (!document.body.contains(el) || !location.hash.endsWith(match.id)) return unsubVoice?.();
+    updateStatus();
+  });
+  if (recording) {
+    recTimer = setInterval(() => {
+      const t = el.querySelector('#rec-time');
+      if (t) t.textContent = `${recorder.recordingSeconds()}s`;
+    }, 1000);
+  }
+
+  const stopAndStore = (key) => {
+    recorder.stopRecording(2500).then(async (blob) => {
+      if (!blob) return setVoice(match.id, key, { status: 'noaudio' });
+      try {
+        await putAudio(audioId(match.id, key), blob);
+        setVoice(match.id, key, { status: 'recorded', size: blob.size });
+        kickQueue();
+      } catch {
+        setVoice(match.id, key, { status: 'noaudio', error: 'No se pudo guardar el audio' });
+      }
+    });
+  };
+
+  el.querySelector('#rec')?.addEventListener('click', async () => {
+    if (recorder.isRecording()) return;
+    try {
+      await recorder.startRecording();
+      vibrate();
+    } catch (err) {
+      toast('No se pudo usar el micrófono: revisa los permisos');
+      console.warn(err);
+    }
+    rerender();
+  });
+
+  el.querySelectorAll('[data-close-rally]').forEach((b) => b.addEventListener('click', () => {
+    const key = voiceKeyOf(match.currentSet, st.rally);
+    const wasRecording = recorder.isRecording();
+    const def = b.dataset.closeRally === 'us' ? TEAM_EVENTS.rallyUs : TEAM_EVENTS.rallyThem;
+    addEvent(match.id, { skill: def.skill, result: def.result });
+    setVoice(match.id, key, { set: match.currentSet, rally: st.rally, status: wasRecording ? 'recording' : 'noaudio', t: Date.now() });
+    if (wasRecording) stopAndStore(key);
+    vibrate();
+    rerender();
+  }));
+
+  // Ace / error de saque: no hace falta dictar nada.
+  el.querySelectorAll('[data-serve]').forEach((b) => b.addEventListener('click', () => {
+    if (recorder.isRecording()) recorder.cancelRecording();
+    addEvent(match.id, { playerId: server?.id ?? null, skill: 'saque', result: b.dataset.serve, phase: 'serve' });
+    vibrate();
+    rerender();
+  }));
+  el.querySelectorAll('[data-team]').forEach((b) => b.addEventListener('click', () => {
+    if (recorder.isRecording()) recorder.cancelRecording();
+    const def = TEAM_EVENTS[b.dataset.team];
+    addEvent(match.id, { skill: def.skill, result: def.result });
+    vibrate();
+    rerender();
+  }));
+
+  el.querySelector('#undo').addEventListener('click', () => {
+    const undone = undoLastEvent(match.id);
+    if (undone?.voiceKey) deleteAudio(audioId(match.id, undone.voiceKey)).catch(() => {});
+    if (undone?.type === 'event') toast(`Deshecho: ${describeEvent(undone.event)}`);
+    else if (undone?.type === 'set') toast(`Set ${match.currentSet} reabierto`);
+    rerender();
+  });
+  el.querySelector('#close-set')?.addEventListener('click', () => {
+    const status = closeSet(match.id);
+    toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
+    rerender();
+  });
+  el.querySelector('#menu').addEventListener('click', () => openMatchMenu(match, st, rerender));
+}
+
+const VOICE_STATUS = {
+  recording: 'Grabando',
+  recorded: 'En cola',
+  transcribing: 'Transcribiendo',
+  parsed: 'Analizado',
+  applied: 'Listo',
+  error: 'Error',
+  noaudio: 'Sin audio',
+};
+
 function logItem(ev, match) {
   const p = ev.playerId ? playerById(ev.playerId) : null;
   if (ev.skill === 'cambio') {
@@ -682,7 +896,9 @@ function openMatchMenu(match, st, rerender) {
       <button class="btn btn-block" id="m-sub" ${rallyStarted ? 'disabled' : ''}>Cambio de jugador</button>
       <button class="btn btn-block" id="m-lineup">Editar alineación${setStarted ? ' del set' : ''}</button>
       <button class="btn btn-block" id="m-close-set">Cerrar set ${match.currentSet} ahora</button>
-      <button class="btn btn-block" id="m-recordset">Registrar colocaciones: ${match.recordSet === false ? 'No' : 'Sí'}</button>
+      <button class="btn btn-block" id="m-mode">Modo de registro: ${match.mode === 'voz' ? 'Voz → cambiar a toques' : 'Toques → cambiar a voz'}</button>
+      ${match.mode === 'voz' ? html`<a class="btn btn-block" href="#/partido/${match.id}/voz" data-close>Revisión de voz</a>` : ''}
+      ${match.mode === 'voz' ? '' : html`<button class="btn btn-block" id="m-recordset">Registrar colocaciones: ${match.recordSet === false ? 'No' : 'Sí'}</button>`}
       <button class="btn btn-block" id="m-roster">Cambiar convocados</button>
       <button class="btn btn-block" id="m-rivals">Plantilla de ${match.opponent}</button>
       <a class="btn btn-block" href="#/estadisticas?m=${match.id}" data-close>Ver estadísticas</a>
@@ -710,7 +926,13 @@ function openMatchMenu(match, st, rerender) {
     clearSelection();
     rerender();
   });
-  sheet.root.querySelector('#m-recordset').addEventListener('click', () => {
+  sheet.root.querySelector('#m-mode').addEventListener('click', () => {
+    setMatchMode(match.id, match.mode === 'voz' ? 'toques' : 'voz');
+    sheet.close();
+    clearSelection();
+    rerender();
+  });
+  sheet.root.querySelector('#m-recordset')?.addEventListener('click', () => {
     setRecordSet(match.id, match.recordSet === false);
     sheet.close();
     toast(match.recordSet ? 'Se registrarán las colocaciones' : 'Colocaciones: se asumen buenas');

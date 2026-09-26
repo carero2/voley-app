@@ -1,6 +1,9 @@
 import { getData, exportData, importData, resetAll, playerById, clubs } from '../store.js';
 import { positionById, skillById, resultDef } from '../actions.js';
 import { html, download, toast, today } from '../ui.js';
+import { voiceSettings, saveVoiceSettings, testConnection } from '../voice/transcribe.js';
+import { audioUsage } from '../voice/db.js';
+import { kickQueue } from '../voice/queue.js';
 
 export function renderData(el) {
   const d = getData();
@@ -22,6 +25,24 @@ export function renderData(el) {
     </section>
 
     <section class="card stack">
+      <h2>Registro por voz</h2>
+      <p class="small muted">La transcripción usa <b>Groq</b> (Whisper), gratis hasta unas 8 horas de audio al día.
+        Crea una clave gratuita en <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> y pégala aquí.
+        Se guarda <b>solo en este dispositivo</b> y no se incluye en las copias.</p>
+      <form id="voice-form" class="form-inline">
+        <label class="field grow">
+          <span>Clave de Groq</span>
+          <input name="groqKey" type="password" autocomplete="off" placeholder="gsk_…" value="${voiceSettings().groqKey ?? ''}" />
+        </label>
+        <button class="btn" type="submit">Guardar</button>
+      </form>
+      <div class="form-actions">
+        <button class="btn" id="voice-test">Probar conexión</button>
+      </div>
+      <p class="small muted" id="voice-info"></p>
+    </section>
+
+    <section class="card stack">
       <h2>Importar</h2>
       <p class="muted small">Carga una copia JSON. «Combinar» añade los clubes, jugadores y partidos que no tengas; «Reemplazar» borra todo lo actual. Una copia antigua (de antes de los clubes) se carga en el club activo.</p>
       <input type="file" id="file" accept="application/json,.json" hidden />
@@ -36,6 +57,23 @@ export function renderData(el) {
       <button class="btn btn-danger btn-block" id="reset">Borrar todos los datos (todos los clubes)</button>
     </section>
   `;
+
+  el.querySelector('#voice-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveVoiceSettings({ groqKey: e.target.groqKey.value.trim() });
+    toast('Clave guardada');
+    kickQueue();
+  });
+  el.querySelector('#voice-test').addEventListener('click', async () => {
+    const info = el.querySelector('#voice-info');
+    info.textContent = 'Probando…';
+    const r = await testConnection();
+    info.textContent = r.message;
+  });
+  audioUsage().then(({ bytes, count }) => {
+    const info = el.querySelector('#voice-info');
+    if (info && !info.textContent) info.textContent = `Audios guardados: ${count} (${(bytes / 1048576).toFixed(1)} MB).`;
+  }).catch(() => {});
 
   el.querySelector('#export-json').addEventListener('click', () => {
     download(`voley-${today()}.json`, JSON.stringify(exportData(), null, 2), 'application/json');

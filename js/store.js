@@ -230,7 +230,7 @@ export const matchById = (id) => data.matches.find((m) => m.id === id);
 export const sortedMatches = () =>
   [...data.matches].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
 
-export function createMatch({ opponent, date, place, bestOf, roster }) {
+export function createMatch({ opponent, date, place, bestOf, roster, mode = 'toques' }) {
   const match = {
     id: uid(),
     createdAt: Date.now(),
@@ -242,6 +242,9 @@ export function createMatch({ opponent, date, place, bestOf, roster }) {
     currentSet: 1,
     status: 'live',
     recordSet: data.settings?.recordSet ?? false,
+    // 'toques': registro detallado tocando la pantalla. 'voz': botones en directo + dictado por punto.
+    mode,
+    voice: {},
     sets: {},
     events: [],
   };
@@ -331,8 +334,16 @@ export function undoLastEvent(matchId) {
   const last = match.events.at(-1);
   if (last && last.set === match.currentSet) {
     match.events.pop();
+    // Al deshacer un punto cerrado por voz se quitan también su detalle y su registro de voz.
+    let voiceKey = null;
+    if (last.point) {
+      voiceKey = voiceKeyOf(last.set, last.rally);
+      match.events = match.events.filter((e) => !(e.source === 'voz' && e.set === last.set && e.rally === last.rally));
+      if (match.voice?.[voiceKey]) delete match.voice[voiceKey];
+      else voiceKey = null;
+    }
     persist();
-    return { type: 'event', event: last };
+    return { type: 'event', event: last, voiceKey };
   }
   // Set actual vacío: deshacer significa reabrir el set anterior.
   if (match.currentSet > 1) {
@@ -341,6 +352,68 @@ export function undoLastEvent(matchId) {
     return { type: 'set' };
   }
   return null;
+}
+
+// ---------- Registro por voz ----------
+
+export const voiceKeyOf = (set, rally) => `${set}-${rally}`;
+
+export function setVoice(matchId, key, patch) {
+  const match = matchById(matchId);
+  if (!match) return null;
+  match.voice = match.voice || {};
+  match.voice[key] = { ...(match.voice[key] || {}), ...patch };
+  persist();
+  return match.voice[key];
+}
+
+export function setMatchMode(matchId, mode) {
+  matchById(matchId).mode = mode;
+  persist();
+}
+
+// Estado del set justo antes del evento que cerró un punto (rotación, saque, quién está en pista).
+export function rallyContext(match, set, rally) {
+  const idx = match.events.findIndex((e) => e.set === set && e.rally === rally && e.point);
+  if (idx < 0) return null;
+  const st = setState({ ...match, events: match.events.slice(0, idx) }, set);
+  return { idx, st, closing: match.events[idx] };
+}
+
+// Convierte las acciones dictadas de un punto en eventos normales (así cuentan en las estadísticas).
+// El evento que cerró el punto (botón) sigue siendo el que da el punto; el detalle va sin punto.
+export function applyVoice(matchId, key) {
+  const match = matchById(matchId);
+  const meta = match?.voice?.[key];
+  if (!meta) return;
+  match.events = match.events.filter((e) => !(e.source === 'voz' && e.set === meta.set && e.rally === meta.rally));
+  const ctx = rallyContext(match, meta.set, meta.rally);
+  if (!ctx) return;
+  const { st, closing } = ctx;
+  const PHASE = { recepcion: 'reception', defensa: 'defense', apoyo: 'cover', ataque: 'attack', colocacion: 'set', bloqueo: 'defense', saque: 'serve', free: 'attack' };
+  const base = { set: meta.set, rally: meta.rally, serving: st.serving, rot: rotationOf(st), point: null, source: 'voz', zoneTo: null };
+  const events = [];
+  for (const a of meta.actions || []) {
+    if (!a.skill) continue;
+    const common = { ...base, id: uid(), t: closing.t - 1 };
+    if (a.team === 'them') {
+      if (a.skill === 'free') events.push({ ...common, skill: 'rival', result: 'free', rivalZone: a.zone ?? null, rivalPlayerId: a.rivalPlayerId ?? null });
+      else if (a.skill === 'ataque') events.push({ ...common, skill: 'rival', result: a.result === 'punto' || a.result === 'error' ? a.result : 'ataque', rivalZone: a.zone ?? null, rivalPlayerId: a.rivalPlayerId ?? null });
+      continue;
+    }
+    const phase = PHASE[a.skill] ?? null;
+    const zone = a.zone ?? (st.setup && a.playerId ? tacticalZone(st, a.playerId, phase) : null);
+    if (a.skill === 'free') {
+      events.push({ ...common, skill: 'equipo', result: 'free', playerId: a.playerId ?? null, zone, phase });
+    } else {
+      events.push({ ...common, skill: a.skill === 'apoyo' ? 'defensa' : a.skill, result: a.result ?? null, playerId: a.playerId ?? null, zone, phase });
+    }
+  }
+  const idx = match.events.indexOf(closing);
+  match.events.splice(idx, 0, ...events);
+  closing.cause = meta.cause ?? null;
+  meta.status = 'applied';
+  persist();
 }
 
 export function setScore(match, set) {
