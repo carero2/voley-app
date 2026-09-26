@@ -2,7 +2,7 @@
 // El marcador y la rotación nunca esperan a la cola: si no hay conexión, los audios esperan y se reintentan.
 
 import { getData, matchById, setVoice, applyVoice, rallyContext, playerById, rivalPlayers } from '../store.js';
-import { courtLayout, isFront, suggestedSetter } from '../rally.js';
+import { courtLayout, isFront, suggestedSetter, formation } from '../rally.js';
 import { parse } from './parser.js';
 import { getAudio, audioId } from './db.js';
 import { transcribe, hasTranscriber } from './transcribe.js';
@@ -50,6 +50,8 @@ export function buildContext(match, meta) {
     serving: ctx.st.serving,
     serverId: ctx.st.serving === 'us' ? layout[0].playerId : null,
     setterId: suggestedSetter(ctx.st, (id) => playerById(id)?.position),
+    // Quién ataca desde cada zona en posiciones de juego (4: punta, 3: central, 2: opuesto…; 6/1: zagueros).
+    attackZones: Object.fromEntries(formation(ctx.st, 'attack').map((c) => [c.spot, c.playerId])),
     pointTo: ctx.closing.point,
   };
 }

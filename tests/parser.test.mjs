@@ -20,7 +20,9 @@ const onCourt = [
   { playerId: 'ana', zone: 1, front: false, role: 'colocador' },
 ];
 const rivals = [{ id: 'r8', number: '8', name: 'Marta' }];
-const ctx = (extra = {}) => ({ players, onCourt, rivals, serving: 'them', serverId: null, setterId: 'ana', pointTo: 'us', ...extra });
+// Zonas de ataque en posiciones de juego: 4 punta delantero, 3 central, 2 opuesto.
+const attackZones = { 4: 'carlos', 3: 'dani', 2: 'pablo', 6: 'eva', 1: 'ana' };
+const ctx = (extra = {}) => ({ players, onCourt, rivals, serving: 'them', serverId: null, setterId: 'ana', attackZones, pointTo: 'us', ...extra });
 
 const cases = [
   ['Carlos recibe bien, Carlos ataca por 4, punto', ctx(),
@@ -65,6 +67,16 @@ const cases = [
     [{ skill: 'recepcion', playerId: 'simon', result: 'buena' }, { skill: 'ataque', playerId: 'carlos', result: 'bloqueado' }]],
   ['defiende el líbero, coloca a la central y ataca por el centro', ctx({ serving: 'us', serverId: 'ana' }),
     [{ skill: 'defensa', playerId: 'simon' }, { skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'dani', zone: 3, result: 'punto' }]],
+  // Frase real: conjugaciones que indican el equipo y líbero fuera de pista al empezar el punto.
+  ['Atacan por 3. Defiende el libero, buena. Rematamos por 3 y punto',
+    ctx({ serving: 'us', serverId: 'ana', onCourt: onCourt.filter((c) => c.role !== 'libero') }),
+    [{ skill: 'ataque', team: 'them', zone: 3 }, { skill: 'defensa', playerId: 'simon', result: 'buena' }, { skill: 'ataque', playerId: 'dani', zone: 3, result: 'punto' }]],
+  ['Recibe Carlos, doble positiva. Coloca a 4. Remata punta y blockout', ctx(),
+    [{ skill: 'recepcion', playerId: 'carlos', result: 'buena' }, { skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'carlos', zone: 4, result: 'blockout' }]],
+  ['recibe Eva, coloca a 3', ctx(),
+    [{ skill: 'recepcion', playerId: 'eva', result: 'buena' }, { skill: 'colocacion', playerId: 'ana', result: 'buena' }, { skill: 'ataque', playerId: 'dani', zone: 3, result: 'punto' }]],
+  ['sacan, recibimos bien y atacamos por 4, nos bloquean', ctx({ pointTo: 'them' }),
+    [{ skill: 'saque', team: 'them' }, { skill: 'recepcion', result: 'buena' }, { skill: 'ataque', playerId: 'carlos', zone: 4, result: 'bloqueado' }]],
 ];
 
 let ok = 0;

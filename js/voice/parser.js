@@ -59,11 +59,29 @@ const SKILL_WORDS = {
   apoyo: ['apoyo', 'cubre', 'cobertura', 'apoya'],
 };
 
+// Formas verbales que ya indican el equipo: «atacan» (ellos), «rematamos» (nosotros).
+const VERB_TEAM = {
+  them: {
+    ataque: ['atacan', 'rematan', 'tiran', 'golpean', 'fintan', 'atacaron', 'remataron'],
+    saque: ['sacan', 'sirven'],
+    free: ['pasan'],
+  },
+  us: {
+    ataque: ['atacamos', 'rematamos', 'tiramos', 'atacamos', 'rematemos'],
+    recepcion: ['recibimos'],
+    defensa: ['defendemos', 'levantamos'],
+    bloqueo: ['bloqueamos'],
+    colocacion: ['colocamos'],
+    saque: ['sacamos'],
+    free: ['pasamos'],
+  },
+};
+
 const RESULT_WORDS = {
   punto: ['punto', 'gana', 'tanto', 'kill', 'mata', 'directo', 'suelo', 'dentro', 'clava', 'clavada'],
   ace: ['ace', 'eis'],
   blockout: ['blockout', 'blocaut', 'blokout', 'bloqueout'],
-  bloqueado: ['bloqueado', 'bloqueada', 'tapado', 'tapada', 'taponado', 'taponada'],
+  bloqueado: ['bloqueado', 'bloqueada', 'tapado', 'tapada', 'taponado', 'taponada', 'bloquean', 'tapan'],
   error: ['error', 'fuera', 'out', 'red', 'falla', 'fallo', 'erra', 'invasion', 'dobles', 'retencion'],
   buena: ['buena', 'bueno', 'bien', 'perfecta', 'perfecto', 'positiva', 'positivo', 'excelente'],
   mala: ['mala', 'malo', 'mal', 'regular', 'negativa', 'negativo'],
@@ -149,6 +167,9 @@ function tokenize(text, ctx) {
       continue;
     }
 
+    const verbTeam = VERB_TEAM.them && Object.entries(VERB_TEAM).find(([, forms]) => lookup(forms, w));
+    if (verbTeam) { toks.push({ type: 'skill', value: lookup(verbTeam[1], w), team: verbTeam[0], word: w, i }); continue; }
+
     const skill = lookup(SKILL_WORDS, w);
     // «coloca» puede ser verbo (colocación) o puesto: se decide después según contexto.
     if (skill) { toks.push({ type: 'skill', value: skill, word: w, i }); continue; }
@@ -219,7 +240,7 @@ function groupActions(toks) {
       groups.push({ skill: null, subj: cl.find((t) => t.type === 'subj' && !t.target) ?? null, target: cl.find((t) => t.type === 'subj' && t.target) ?? null, items: cl });
       continue;
     }
-    const gs = skills.map((i) => ({ skill: cl[i].value, subj: null, target: null, items: [] }));
+    const gs = skills.map((i) => ({ skill: cl[i].value, team: cl[i].team ?? null, subj: null, target: null, items: [] }));
     const groupFor = (i) => {
       let k = skills.findIndex((s) => s > i) - 1;
       if (k === -2) k = skills.length - 1; // después de la última acción
@@ -271,7 +292,14 @@ function resolveSubject(subj, skill, ctx) {
   if (subj.qual) cands = cands.filter((c) => (subj.qual === 'front' ? c.front : !c.front));
   // Solo los delanteros atacan desde la red y bloquean; en recepción/defensa no se puede decidir.
   if (cands.length > 1 && ['ataque', 'bloqueo'].includes(skill)) cands = cands.filter((c) => c.front);
-  return cands.length === 1 ? cands[0].playerId : null;
+  if (cands.length === 1) return cands[0].playerId;
+  // Si no está en pista al empezar el punto (p. ej. el líbero cuando saca el central), se busca en la
+  // plantilla: vale si solo hay un jugador con ese puesto.
+  if (cands.length === 0 && !subj.qual) {
+    const byPos = ctx.players.filter((p) => p.position === subj.role.value);
+    if (byPos.length === 1) return byPos[0].id;
+  }
+  return null;
 }
 
 const isRivalSubj = (subj) => Boolean(subj?.number && !subj.number.ours && subj.number.theirs && !subj.player && !subj.role);
@@ -292,6 +320,7 @@ export function parse(text, ctx) {
   const groups = groupActions(toks);
   const actions = [];
   let pendingAttacker = null; // «coloca a X»: X es el atacante siguiente
+  let pendingZone = null; // «coloca a 4»: zona del ataque siguiente
 
   groups.forEach((g, idx) => {
     const prev = actions.at(-1);
@@ -307,7 +336,7 @@ export function parse(text, ctx) {
     }
     if (!g.skill && !g.subj && !g.target && !r && !zone && !rivalMark) return;
 
-    const team = rivalMark || isRivalSubj(g.subj) ? 'them' : 'us';
+    const team = g.team ?? (rivalMark || isRivalSubj(g.subj) ? 'them' : 'us');
     let skill = g.skill ?? (team === 'them' ? 'ataque' : inferSkill(prev, g, ctx, idx === 0));
     const action = { skill, team, playerId: null, rivalPlayerId: null, zone, result: null, inferredSkill: !g.skill };
 
@@ -316,20 +345,33 @@ export function parse(text, ctx) {
       if (!player && skill === 'saque' && ctx.serving === 'us') player = ctx.serverId ?? null;
       if (!player && skill === 'colocacion') player = ctx.setterId ?? null; // coloca quien está de colocador
       if (!player && skill === 'ataque' && pendingAttacker) player = pendingAttacker;
+      if (skill === 'ataque' && !action.zone && pendingZone) action.zone = pendingZone;
+      // «rematamos por 3»: quien ataca por esa zona según la rotación.
+      if (!player && skill === 'ataque' && zone && ctx.attackZones?.[zone]) player = ctx.attackZones[zone];
       action.playerId = player;
       action.result = skill === 'free' ? 'free' : mapResult(skill, r);
     } else {
       action.rivalPlayerId = g.subj?.number?.theirs ?? null;
       action.result = r === 'punto' || r === 'error' ? r : null;
     }
-    if (skill === 'ataque') pendingAttacker = null;
-    if (g.target && team === 'us') pendingAttacker = resolveSubject(g.target, 'ataque', ctx);
+    if (skill === 'ataque') { pendingAttacker = null; pendingZone = null; }
+    if (g.target && team === 'us') {
+      // Tras «coloca a/al», un número del 1 al 6 sin nombre es la zona («coloca a 4»), no el dorsal.
+      const onlyNumber = g.target.number && !g.target.player && !g.target.role;
+      const n = onlyNumber ? Number(g.target.number.value) : null;
+      if (skill === 'colocacion' && n >= 1 && n <= 6) {
+        pendingZone = n;
+        pendingAttacker = ctx.attackZones?.[n] ?? null;
+      } else {
+        pendingAttacker = resolveSubject(g.target, 'ataque', ctx);
+      }
+    }
     actions.push(action);
   });
 
   // «coloca a X» sin decir luego «X ataca»: el ataque de X se da por hecho.
-  if (pendingAttacker) {
-    actions.push({ skill: 'ataque', team: 'us', playerId: pendingAttacker, rivalPlayerId: null, zone: null, result: null, inferredSkill: true });
+  if (pendingAttacker || pendingZone) {
+    actions.push({ skill: 'ataque', team: 'us', playerId: pendingAttacker, rivalPlayerId: null, zone: pendingZone, result: null, inferredSkill: true });
   }
 
   // Primer/segundo toque sin calidad: si después atacamos (o colocamos), fue bueno; si pasamos FREE, malo.
