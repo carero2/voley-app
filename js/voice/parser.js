@@ -104,7 +104,9 @@ const BACK_WORDS = ['zaguero', 'zaguera', 'atras', 'trasero', 'trasera'];
 const RIVAL_WORDS = ['rival', 'rivales', 'ellos', 'contrario', 'contrarios', 'contraria', 'adversario', 'adversarios', 'ellas'];
 const ZONE_PREFIX = ['zona', 'por', 'desde'];
 const ZONE_WORDS = { pipe: 6, centro: 3 };
-const STOP = new Set(['el', 'la', 'los', 'las', 'de', 'del', 'a', 'al', 'que', 'y', 'con', 'en', 'lo', 'le', 'se', 'su', 'una', 'un', 'uno', 'numero', 'dorsal', 'jugador', 'jugadora', 'luego', 'despues', 'entonces', 'pero', 'muy', 'otra', 'otro', 'vez', 'es', 'ha', 'hace', 'hacen', 'hizo', 'pues', 'vale', 'bola', 'balon', 'pelota']);
+// Tipos de colocación/ataque: se reconocen para no contarlos como palabras desconocidas.
+const SET_TYPES = ['rapida', 'rapido', 'alta', 'alto', 'tensa', 'tenso', 'corta', 'larga', 'segunda', 'primer', 'tiempo', 'finta', 'dejada', 'suave', 'fuerte', 'potente', 'cruzado', 'cruzada', 'paralela', 'diagonal', 'linea'];
+const STOP = new Set([...SET_TYPES, 'el', 'la', 'los', 'las', 'de', 'del', 'a', 'al', 'que', 'y', 'con', 'en', 'lo', 'le', 'se', 'su', 'una', 'un', 'uno', 'numero', 'dorsal', 'jugador', 'jugadora', 'luego', 'despues', 'entonces', 'pero', 'muy', 'otra', 'otro', 'vez', 'es', 'ha', 'hace', 'hacen', 'hizo', 'pues', 'vale', 'bola', 'balon', 'pelota']);
 
 // Busca una palabra en un vocabulario { clave: [palabras] }.
 function lookup(dict, w) {
@@ -365,6 +367,22 @@ export function parse(text, ctx) {
     if (skill === 'recepcion' && team === 'us' && (ctx.serving === 'us' || actions.some((a) => a.team === 'us' || a.skill !== 'saque'))) {
       skill = 'defensa';
     }
+    // «block» sin decir de quién: se decide con el botón que cerró el punto.
+    if (skill === 'bloqueo' && team === 'us' && !g.subj) {
+      const ourAttackPending = pendingAttacker || pendingZone || (prev?.team === 'us' && prev.skill === 'ataque' && !prev.result);
+      // Tras nuestro ataque y punto rival: nos han bloqueado.
+      if (ourAttackPending && ctx.pointTo === 'them') {
+        if (prev?.team === 'us' && prev.skill === 'ataque' && !prev.result) {
+          prev.result = 'bloqueado';
+          prev.inferredResult = true;
+        } else {
+          actions.push({ skill: 'ataque', team: 'us', playerId: pendingAttacker, rivalPlayerId: null, zone: pendingZone, result: 'bloqueado', inferredSkill: true, inferredResult: true });
+          pendingAttacker = null;
+          pendingZone = null;
+        }
+        return;
+      }
+    }
     // «Buena recepción» después de «recibe el líbero»: es la calidad de esa misma acción.
     if (g.skill && !g.subj && !g.target && team === 'us' && prev?.team === 'us' && prev.skill === skill && !prev.result && r) {
       prev.result = mapResult(skill, r);
@@ -423,11 +441,17 @@ export function parse(text, ctx) {
     }
   });
 
-  // Si el punto fue nuestro y lo último es nuestro ataque/bloqueo sin resultado, fue punto.
+  // La última acción se completa con el botón que cerró el punto (si no se dijo el resultado).
   const last = actions.at(-1);
-  if (ctx.pointTo === 'us' && last?.team === 'us' && !last.result && ['ataque', 'bloqueo'].includes(last.skill)) {
-    last.result = 'punto';
-    last.inferredResult = true;
+  const infer = (a, result) => { a.result = result; a.inferredResult = true; };
+  if (last && !last.result && ctx.pointTo) {
+    if (ctx.pointTo === 'us') {
+      if (last.team === 'us' && ['ataque', 'bloqueo'].includes(last.skill)) infer(last, 'punto');
+      else if (last.team === 'them' && last.skill === 'ataque') infer(last, 'error'); // su ataque acabó fuera o en la red
+    } else {
+      if (last.team === 'them' && last.skill === 'ataque') infer(last, 'punto');
+      else if (last.team === 'us' && ['recepcion', 'defensa', 'apoyo', 'colocacion'].includes(last.skill)) infer(last, 'error');
+    }
   }
 
   const unknown = toks.filter((t) => t.type === 'unknown').map((t) => t.value);

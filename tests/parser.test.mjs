@@ -93,6 +93,23 @@ const cases = [
     [{ skill: 'free', playerId: 'pablo' }]],
   ['coloca Ana mal y Carlos ataca fuera', ctx({ pointTo: 'them' }),
     [{ skill: 'colocacion', playerId: 'ana', result: 'mala' }, { skill: 'ataque', playerId: 'carlos', result: 'error' }]],
+  // Frase real: «y block» con punto rival = nos bloquean el ataque.
+  ['Recepción de Carlos, muy buena. Colocación rápida a 3 y block.', ctx({ pointTo: 'them' }),
+    [{ skill: 'recepcion', playerId: 'carlos', result: 'buena' }, { skill: 'colocacion', playerId: 'ana', result: 'buena' },
+      { skill: 'ataque', playerId: 'dani', zone: 3, result: 'bloqueado' }]],
+  ['el opuesto ataca por 2 y block', ctx({ pointTo: 'them' }),
+    [{ skill: 'ataque', playerId: 'pablo', zone: 2, result: 'bloqueado' }]],
+  // Ligado al botón:
+  ['atacan por 4 y block de la central', ctx({ serving: 'us', serverId: 'ana', pointTo: 'us' }),
+    [{ skill: 'ataque', team: 'them', zone: 4 }, { skill: 'bloqueo', playerId: 'dani', result: 'punto' }]],
+  ['saque en juego y atacan por 2', ctx({ serving: 'us', serverId: 'ana', pointTo: 'them' }),
+    [{ skill: 'saque', playerId: 'ana', result: 'enjuego' }, { skill: 'ataque', team: 'them', zone: 2, result: 'punto' }]],
+  ['saque en juego y atacan por 2', ctx({ serving: 'us', serverId: 'ana', pointTo: 'us' }),
+    [{ skill: 'saque', playerId: 'ana', result: 'enjuego' }, { skill: 'ataque', team: 'them', zone: 2, result: 'error' }]],
+  ['recibe Eva', ctx({ pointTo: 'them' }),
+    [{ skill: 'recepcion', playerId: 'eva', result: 'error' }]],
+  ['atacan por 4, defiende Simón', ctx({ serving: 'us', serverId: 'ana', pointTo: 'them' }),
+    [{ skill: 'ataque', team: 'them', zone: 4 }, { skill: 'defensa', playerId: 'simon', result: 'error' }]],
 ];
 
 let ok = 0;

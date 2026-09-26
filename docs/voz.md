@@ -58,6 +58,12 @@ Reglas de interpretación:
 - La colocación es buena por defecto y la hace el colocador en pista, salvo que se diga otra cosa.
 - «Colocación a X y fuera»: el resultado es del ataque de X.
 - Del rival solo se registran ataque (con zona), saque y FREE; «defienden», «colocan»… se reconocen y se ignoran.
+- El botón que cerró el punto completa la última acción si no se dijo su resultado:
+  - Punto propio: nuestro ataque o bloqueo = punto; ataque rival = error del rival.
+  - Punto rival: ataque rival = punto del rival; nuestra recepción/defensa/apoyo/colocación = error.
+  - «block» sin decir de quién justo tras nuestro ataque (o «coloca a …») con punto rival = nos bloquean
+    (ataque «bloqueado»); tras un ataque rival con punto propio = nuestro block.
+- Tipos de colocación o ataque («rápida», «alta», «tensa», «finta»…) se reconocen y se ignoran.
 - Calidades deducidas (marcadas «(deducido)» en la revisión): recepción/defensa/apoyo/colocación seguidas
   de nuestro ataque = buenas; seguidas de una FREE nuestra = malas; si el punto fue nuestro y lo último es
   nuestro ataque o bloqueo sin resultado = punto.
