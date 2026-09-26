@@ -77,6 +77,22 @@ const cases = [
     [{ skill: 'recepcion', playerId: 'eva', result: 'buena' }, { skill: 'colocacion', playerId: 'ana', result: 'buena' }, { skill: 'ataque', playerId: 'dani', zone: 3, result: 'punto' }]],
   ['sacan, recibimos bien y atacamos por 4, nos bloquean', ctx({ pointTo: 'them' }),
     [{ skill: 'saque', team: 'them' }, { skill: 'recepcion', result: 'buena' }, { skill: 'ataque', playerId: 'carlos', zone: 4, result: 'bloqueado' }]],
+  // Frase real: defensa tras toque de bloqueo, calidad dicha aparte y «colocación a X y fuera».
+  ['Defienden y atacan por 4. El bloqueo toca la pelota y recibe el libero. Buena recepción. Colocación a opuesto y fuera.',
+    ctx({ serving: 'us', serverId: 'ana', pointTo: 'them' }),
+    [{ skill: 'ataque', team: 'them', zone: 4 }, { skill: 'bloqueo', result: 'toque' }, { skill: 'defensa', playerId: 'simon', result: 'buena' },
+      { skill: 'colocacion', playerId: 'ana', result: 'buena' }, { skill: 'ataque', playerId: 'pablo', result: 'error' }]],
+  // FREE:
+  ['nos pasan free, recibe el libero y ataca el punta por 4, punto', ctx({ serving: 'us', serverId: 'ana' }),
+    [{ skill: 'free', team: 'them' }, { skill: 'defensa', playerId: 'simon', result: 'buena' }, { skill: 'ataque', playerId: 'carlos', zone: 4, result: 'punto' }]],
+  ['recibe mal Eva y pasamos free, atacan por 2', ctx({ pointTo: 'them' }),
+    [{ skill: 'recepcion', playerId: 'eva', result: 'mala' }, { skill: 'free', team: 'us' }, { skill: 'ataque', team: 'them', zone: 2 }]],
+  ['bola fácil de ellos, el central ataca y punto', ctx({ serving: 'us', serverId: 'ana' }),
+    [{ skill: 'free', team: 'them' }, { skill: 'ataque', playerId: 'dani', result: 'punto' }]],
+  ['fri del opuesto', ctx({ pointTo: 'them' }),
+    [{ skill: 'free', playerId: 'pablo' }]],
+  ['coloca Ana mal y Carlos ataca fuera', ctx({ pointTo: 'them' }),
+    [{ skill: 'colocacion', playerId: 'ana', result: 'mala' }, { skill: 'ataque', playerId: 'carlos', result: 'error' }]],
 ];
 
 let ok = 0;

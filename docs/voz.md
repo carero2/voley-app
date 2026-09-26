@@ -38,7 +38,9 @@ No hace falta un orden fijo. El analizador reconoce por palabras clave:
 | Jugador por nombre | «Carlos», «Simón» (tolera un error de transcripción en nombres de 5+ letras) |
 | Jugador por dorsal | «el 10», «diez» |
 | Jugador por puesto | «el punta», «la central», «el opuesto», «el líbero», «el colocador», «el punta zaguero/delantero» |
-| Acción | saque/saca, recibe/recepción, coloca, ataca/remata/tira, bloqueo/bloquea, defensa/defiende, free, apoyo/cubre |
+| Acción | saque/saca, recibe/recepción, coloca, ataca/remata/tira, bloqueo/bloquea, defensa/defiende, apoyo/cubre |
+| FREE | «free», «fri», «bola fácil»; «nos pasan free» / «pasan free» (rival), «pasamos free», «free del opuesto» (nuestra) |
+| Equipo por el verbo | «atacan», «rematan», «sacan», «pasan» = rival; «atacamos», «rematamos», «recibimos», «pasamos» = nosotros |
 | Resultado | bien/buena, mal/mala, error/fuera/red, punto/gana, blockout, bloqueado/tapado, toque |
 | Zona | «por 4», «zona 2», «por la 3», «desde 1», «pipe» |
 | Rival | «rival», «ellos», «contrario», o un dorsal de la plantilla rival |
@@ -50,6 +52,12 @@ Reglas de interpretación:
 - «coloca a X» / «para X»: X es el atacante siguiente; el colocador es el que está en pista.
 - Los puestos se buscan en la alineación de ese set (el hueco que ocupa cada jugador), no en su ficha.
 - Si no se dice la acción, se deduce del momento del punto (p. ej. primer toque cuando saca el rival = recepción).
+- «Recibe» solo es recepción en el primer toque tras el saque rival; en cualquier otro momento (tras un ataque,
+  un toque de bloqueo o una FREE rival) es defensa.
+- Una calidad dicha aparte («Buena recepción») completa la acción anterior del mismo tipo.
+- La colocación es buena por defecto y la hace el colocador en pista, salvo que se diga otra cosa.
+- «Colocación a X y fuera»: el resultado es del ataque de X.
+- Del rival solo se registran ataque (con zona), saque y FREE; «defienden», «colocan»… se reconocen y se ignoran.
 - Calidades deducidas (marcadas «(deducido)» en la revisión): recepción/defensa/apoyo/colocación seguidas
   de nuestro ataque = buenas; seguidas de una FREE nuestra = malas; si el punto fue nuestro y lo último es
   nuestro ataque o bloqueo sin resultado = punto.

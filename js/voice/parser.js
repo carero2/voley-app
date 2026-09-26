@@ -55,7 +55,7 @@ const SKILL_WORDS = {
   ataque: ['ataque', 'ataca', 'ataco', 'atacar', 'remate', 'remata', 'remato', 'golpea', 'finta', 'tira'],
   bloqueo: ['bloqueo', 'bloquea', 'bloqueo', 'block', 'bloque', 'bloquear'],
   defensa: ['defensa', 'defiende', 'defendio', 'defender', 'levanta', 'saca la bola'],
-  free: ['free', 'fri', 'freeball', 'fribol'],
+  free: ['free', 'fri', 'frii', 'freeball', 'fribol', 'friball', 'fribo'],
   apoyo: ['apoyo', 'cubre', 'cobertura', 'apoya'],
 };
 
@@ -65,6 +65,9 @@ const VERB_TEAM = {
     ataque: ['atacan', 'rematan', 'tiran', 'golpean', 'fintan', 'atacaron', 'remataron'],
     saque: ['sacan', 'sirven'],
     free: ['pasan'],
+    // Otras acciones del rival: se reconocen para no confundirlas, pero no se registran.
+    defensa: ['defienden', 'levantan', 'reciben'],
+    colocacion: ['colocan'],
   },
   us: {
     ataque: ['atacamos', 'rematamos', 'tiramos', 'atacamos', 'rematemos'],
@@ -128,6 +131,7 @@ function tokenize(text, ctx) {
   const clean = strip(text)
     .replace(/block\s*out|bloc\s*out|blo\s*caut/g, 'blockout')
     .replace(/free\s*ball/g, 'freeball')
+    .replace(/(bola|pelota|balon) facil/g, 'free')
     .replace(/en juego/g, 'juego')
     .replace(/saca la bola/g, 'defiende');
   const words = wordsToDigits(clean.split(/[^a-z0-9ñ.,;:!?]+/).flatMap((w) => w.split(/(?=[.,;:!?])|(?<=[.,;:!?])/)).filter(Boolean));
@@ -233,7 +237,16 @@ function groupActions(toks) {
     clauses.at(-1).push(t);
   }
   const groups = [];
-  for (const cl of clauses) {
+  for (let cl of clauses) {
+    // «pasan free», «pasamos free»: verbo y nombre de la misma acción seguidos cuentan una vez.
+    cl = cl.filter((t, i) => {
+      const prev = cl[i - 1];
+      if (t.type === 'skill' && prev?.type === 'skill' && prev.value === t.value) {
+        prev.team ??= t.team;
+        return false;
+      }
+      return true;
+    });
     if (!cl.length) continue;
     const skills = cl.map((t, i) => (t.type === 'skill' ? i : -1)).filter((i) => i >= 0);
     if (!skills.length) {
@@ -330,6 +343,13 @@ export function parse(text, ctx) {
 
     // Resultado o zona sueltos tras una pausa («Carlos ataca por 4, punto»): completan la acción anterior.
     if (!g.skill && !g.subj && !g.target && !rivalMark && prev) {
+      // «Colocación a opuesto y fuera»: el resultado es del ataque, no de la colocación.
+      if (prev.skill === 'colocacion' && (pendingAttacker || pendingZone)) {
+        actions.push({ skill: 'ataque', team: 'us', playerId: pendingAttacker, rivalPlayerId: null, zone: pendingZone ?? zone, result: mapResult('ataque', r), inferredSkill: true });
+        pendingAttacker = null;
+        pendingZone = null;
+        return;
+      }
       if (!prev.result) prev.result = prev.team === 'us' ? mapResult(prev.skill, r) : (r === 'punto' || r === 'error' ? r : null);
       if (zone && !prev.zone) prev.zone = zone;
       return;
@@ -338,6 +358,19 @@ export function parse(text, ctx) {
 
     const team = g.team ?? (rivalMark || isRivalSubj(g.subj) ? 'them' : 'us');
     let skill = g.skill ?? (team === 'them' ? 'ataque' : inferSkill(prev, g, ctx, idx === 0));
+    // Del rival solo interesan ataque, saque y FREE («defienden», «colocan» no se registran).
+    if (team === 'them' && !['ataque', 'saque', 'free'].includes(skill)) return;
+    // «Recibe» solo es recepción en el primer toque tras el saque rival; después es defensa
+    // (tras un ataque, un toque de bloqueo o una FREE del rival).
+    if (skill === 'recepcion' && team === 'us' && (ctx.serving === 'us' || actions.some((a) => a.team === 'us' || a.skill !== 'saque'))) {
+      skill = 'defensa';
+    }
+    // «Buena recepción» después de «recibe el líbero»: es la calidad de esa misma acción.
+    if (g.skill && !g.subj && !g.target && team === 'us' && prev?.team === 'us' && prev.skill === skill && !prev.result && r) {
+      prev.result = mapResult(skill, r);
+      if (zone && !prev.zone) prev.zone = zone;
+      return;
+    }
     const action = { skill, team, playerId: null, rivalPlayerId: null, zone, result: null, inferredSkill: !g.skill };
 
     if (team === 'us') {
@@ -373,6 +406,11 @@ export function parse(text, ctx) {
   if (pendingAttacker || pendingZone) {
     actions.push({ skill: 'ataque', team: 'us', playerId: pendingAttacker, rivalPlayerId: null, zone: pendingZone, result: null, inferredSkill: true });
   }
+
+  // Colocación: buena salvo que se diga lo contrario (y la hace el colocador en pista).
+  actions.forEach((a) => {
+    if (a.team === 'us' && a.skill === 'colocacion' && !a.result) { a.result = 'buena'; a.inferredResult = true; }
+  });
 
   // Primer/segundo toque sin calidad: si después atacamos (o colocamos), fue bueno; si pasamos FREE, malo.
   actions.forEach((a, i) => {
