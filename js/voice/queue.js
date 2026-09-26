@@ -30,6 +30,19 @@ const ROLE_BY_SLOT = {
   '6-2': ['colocador', 'receptor', 'central', 'colocador', 'receptor', 'central'],
 };
 
+// Quién ataca por cada zona según la rotación (posiciones de juego: 4 punta, 3 central, 2 opuesto…).
+// El colocador no remata su propia colocación: si ocupa la zona 2 (colocador delantero), «a 2» es el
+// opuesto, que ataca desde atrás.
+function attackZones(st, layout, slotRoles) {
+  const zones = Object.fromEntries(formation(st, 'attack').map((c) => [c.spot, c.playerId]));
+  const setter = suggestedSetter(st, (id) => playerById(id)?.position);
+  const opposite = layout.find((c) => !c.libero && (slotRoles?.[c.slot] ?? playerById(c.playerId)?.position) === 'opuesto')?.playerId;
+  for (const z of Object.keys(zones)) {
+    if (zones[z] === setter) zones[z] = Number(z) === 2 && opposite ? opposite : null;
+  }
+  return zones;
+}
+
 // Contexto del punto para el analizador: plantilla, quién estaba en pista y en qué puesto, quién sacaba.
 export function buildContext(match, meta) {
   const ctx = rallyContext(match, meta.set, meta.rally);
@@ -50,8 +63,7 @@ export function buildContext(match, meta) {
     serving: ctx.st.serving,
     serverId: ctx.st.serving === 'us' ? layout[0].playerId : null,
     setterId: suggestedSetter(ctx.st, (id) => playerById(id)?.position),
-    // Quién ataca desde cada zona en posiciones de juego (4: punta, 3: central, 2: opuesto…; 6/1: zagueros).
-    attackZones: Object.fromEntries(formation(ctx.st, 'attack').map((c) => [c.spot, c.playerId])),
+    attackZones: attackZones(ctx.st, layout, slotRoles),
     pointTo: ctx.closing.point,
   };
 }

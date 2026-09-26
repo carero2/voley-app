@@ -214,7 +214,8 @@ function mergeSubjects(toks) {
     if (t.type === 'prep') { target = true; continue; }
     if (SUBJECT_TYPES.includes(t.type)) {
       const last = out.at(-1);
-      const canMerge = last?.type === 'subj' && !(t.type === 'qual' ? last.qual : last[t.type] != null)
+      // Lo que va tras «a/para» es el destinatario: nunca se une al sujeto anterior («coloca Simón a 2»).
+      const canMerge = !target && last?.type === 'subj' && !(t.type === 'qual' ? last.qual : last[t.type] != null)
         && !(t.type === 'player' && last.player) && !(t.type === 'number' && last.number);
       if (canMerge) {
         if (t.type === 'qual') last.qual = t.value; else last[t.type] = t;
@@ -428,6 +429,15 @@ export function parse(text, ctx) {
   // Colocación: buena salvo que se diga lo contrario (y la hace el colocador en pista).
   actions.forEach((a) => {
     if (a.team === 'us' && a.skill === 'colocacion' && !a.result) { a.result = 'buena'; a.inferredResult = true; }
+  });
+
+  // Nuestro ataque sin resultado seguido de una acción del rival: el balón siguió en juego.
+  actions.forEach((a, i) => {
+    const next = actions[i + 1];
+    if (a.team === 'us' && a.skill === 'ataque' && !a.result && next?.team === 'them') {
+      a.result = 'enjuego';
+      a.inferredResult = true;
+    }
   });
 
   // Primer/segundo toque sin calidad: si después atacamos (o colocamos), fue bueno; si pasamos FREE, malo.

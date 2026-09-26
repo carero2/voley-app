@@ -110,6 +110,14 @@ const cases = [
     [{ skill: 'recepcion', playerId: 'eva', result: 'error' }]],
   ['atacan por 4, defiende Simón', ctx({ serving: 'us', serverId: 'ana', pointTo: 'them' }),
     [{ skill: 'ataque', team: 'them', zone: 4 }, { skill: 'defensa', playerId: 'simon', result: 'error' }]],
+  // Frase real: «Coloca Simón a 2» + «Remata» sin sujeto → ataca quien ataca por la 2 según la rotación.
+  ['Recibe Eva. Coloca Ana a 2. Remata y ellos defienden y atacan por 4. Defiende libero. Colocación a punta y punto.', ctx(),
+    [{ skill: 'recepcion', playerId: 'eva', result: 'buena' }, { skill: 'colocacion', playerId: 'ana', result: 'buena' },
+      { skill: 'ataque', playerId: 'pablo', zone: 2, result: 'enjuego' }, { skill: 'ataque', team: 'them', zone: 4 },
+      { skill: 'defensa', playerId: 'simon', result: 'buena' }, { skill: 'colocacion', playerId: 'ana', result: 'buena' },
+      { skill: 'ataque', playerId: 'carlos', result: 'punto' }]],
+  ['coloca Ana al 7 y remata', ctx(),
+    [{ skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'pablo', result: 'punto' }]],
 ];
 
 let ok = 0;
