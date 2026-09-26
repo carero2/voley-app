@@ -54,6 +54,8 @@ Reglas de interpretación:
 - Atacante por zona según la rotación de ese punto (posiciones de juego): 4 punta delantero, 3 central
   delantero, 2 opuesto… El colocador nunca remata su propia colocación: si está delante (zona 2), «a 2» es
   el opuesto. Así, «coloca a 2… remata» asigna el ataque sin decir quién.
+  Excepción (5-1, R1 recibiendo): el punta delantero recibe en Z1 y remata por Z2; el opuesto remata por Z4.
+  Las excepciones están en `PLAY_SWAPS` (js/rally.js) y se pueden añadir más.
 - Nuestro ataque seguido de una acción del rival («ellos defienden y atacan») queda «en juego».
 - Los puestos se buscan en la alineación de ese set (el hueco que ocupa cada jugador), no en su ficha.
 - Si no se dice la acción, se deduce del momento del punto (p. ej. primer toque cuando saca el rival = recepción).

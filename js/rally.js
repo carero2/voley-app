@@ -186,6 +186,18 @@ const GROUP_OF_SLOT = ['so', 'rec', 'cen', 'so', 'rec', 'cen'];
 const PLAY_ZONE = { front: { rec: 4, cen: 3, so: 2 }, back: { rec: 6, cen: 5, so: 1 } };
 const RECEPTION_LINE = [5, 6, 1];
 
+// Excepciones de sistema a las posiciones de ataque/defensa.
+// En 5-1, R1 recibiendo: el punta delantero recibe en Z1 (cubre al colocador) y durante ese punto
+// remata por Z2, mientras el opuesto remata por Z4.
+const PLAY_SWAPS = [
+  { system: '5-1', rotation: 1, serving: 'them', front: { rec: 2, so: 4 } },
+];
+
+function playSwap(st) {
+  const rot = rotationOf(st);
+  return PLAY_SWAPS.find((r) => r.system === st.setup.system && r.rotation === rot && r.serving === st.serving)?.front ?? null;
+}
+
 // 'base' = rotación principal, 'reception' = recepción, 'play' = ataque y defensa.
 export function formationKind(st, phase) {
   if (st.setup.system === 'manual' || phase === 'serve') return 'base';
@@ -201,7 +213,12 @@ export function formation(st, phase, kind = formationKind(st, phase)) {
   if (kind === 'play') {
     // Delanteros: receptor en 4, central en 3, colocador/opuesto en 2.
     // Zagueros: receptor en 6, líbero (o central) en 5, colocador/opuesto en 1.
-    return cells.map((c) => place(c, PLAY_ZONE[isFront(c.zone) ? 'front' : 'back'][GROUP_OF_SLOT[c.slot]]));
+    const swap = playSwap(st);
+    return cells.map((c) => {
+      const front = isFront(c.zone);
+      const group = GROUP_OF_SLOT[c.slot];
+      return place(c, (front && swap?.[group]) || PLAY_ZONE[front ? 'front' : 'back'][group]);
+    });
   }
 
   // Recepción: reciben los dos receptores y el líbero (sin líbero, el central zaguero).
