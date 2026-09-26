@@ -2,7 +2,7 @@
 // El marcador y la rotación nunca esperan a la cola: si no hay conexión, los audios esperan y se reintentan.
 
 import { getData, matchById, setVoice, applyVoice, rallyContext, playerById, rivalPlayers } from '../store.js';
-import { courtLayout, isFront } from '../rally.js';
+import { courtLayout, isFront, suggestedSetter } from '../rally.js';
 import { parse } from './parser.js';
 import { getAudio, audioId } from './db.js';
 import { transcribe, hasTranscriber } from './transcribe.js';
@@ -23,6 +23,13 @@ export function startQueue() {
 }
 export const kickQueue = () => setTimeout(tick, 50);
 
+// Puesto de cada hueco de la alineación según el sistema de juego.
+const ROLE_BY_SLOT = {
+  '5-1': ['colocador', 'receptor', 'central', 'opuesto', 'receptor', 'central'],
+  '4-2': ['colocador', 'receptor', 'central', 'colocador', 'receptor', 'central'],
+  '6-2': ['colocador', 'receptor', 'central', 'colocador', 'receptor', 'central'],
+};
+
 // Contexto del punto para el analizador: plantilla, quién estaba en pista y en qué puesto, quién sacaba.
 export function buildContext(match, meta) {
   const ctx = rallyContext(match, meta.set, meta.rally);
@@ -30,16 +37,19 @@ export function buildContext(match, meta) {
   const base = { players, onCourt: [], rivals: rivalPlayers(match.opponent), serving: 'us', serverId: null, pointTo: null };
   if (!ctx?.st.setup) return base;
   const layout = courtLayout(ctx.st);
+  const slotRoles = ROLE_BY_SLOT[ctx.st.setup.system];
   return {
     ...base,
     onCourt: layout.map((c) => ({
       playerId: c.playerId,
       zone: c.zone,
       front: isFront(c.zone),
-      role: playerById(c.playerId)?.position ?? null,
+      // El puesto es el del hueco que ocupa en la alineación de ese set (no el de su ficha).
+      role: c.libero ? 'libero' : slotRoles?.[c.slot] ?? playerById(c.playerId)?.position ?? null,
     })),
     serving: ctx.st.serving,
     serverId: ctx.st.serving === 'us' ? layout[0].playerId : null,
+    setterId: suggestedSetter(ctx.st, (id) => playerById(id)?.position),
     pointTo: ctx.closing.point,
   };
 }

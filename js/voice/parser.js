@@ -60,7 +60,7 @@ const SKILL_WORDS = {
 };
 
 const RESULT_WORDS = {
-  punto: ['punto', 'gana', 'tanto', 'kill', 'mata', 'directo', 'suelo'],
+  punto: ['punto', 'gana', 'tanto', 'kill', 'mata', 'directo', 'suelo', 'dentro', 'clava', 'clavada'],
   ace: ['ace', 'eis'],
   blockout: ['blockout', 'blocaut', 'blokout', 'bloqueout'],
   bloqueado: ['bloqueado', 'bloqueada', 'tapado', 'tapada', 'taponado', 'taponada'],
@@ -161,6 +161,8 @@ function tokenize(text, ctx) {
     if (FRONT_WORDS.includes(w)) { toks.push({ type: 'qual', value: 'front', i }); continue; }
     if (BACK_WORDS.includes(w)) { toks.push({ type: 'qual', value: 'back', i }); continue; }
 
+    // «coloca a Carlos», «para el punta»: marca a quién va dirigida la acción.
+    if (w === 'a' || w === 'para' || w === 'al') { toks.push({ type: 'prep', i }); continue; }
     if (STOP.has(w) || w.length < 3) continue;
 
     // Nombre de jugador (tolerando 1 error de transcripción en nombres de 5+ letras).
@@ -174,59 +176,72 @@ function tokenize(text, ctx) {
 
 // ---------- Agrupación en acciones ----------
 
-// Cada acción se construye alrededor de una palabra de acción (o de un resultado si no hay acción).
-// Los sujetos (jugador, puesto, dorsal) suelen ir antes del verbo y los complementos (zona, resultado) después.
-function groupActions(toks) {
-  const groups = [];
-  let current = null;
-  let pending = []; // sujetos vistos antes de la palabra de acción
-  const flush = () => {
-    if (current) groups.push(current);
-    current = null;
-  };
-  const newGroup = (skill) => {
-    flush();
-    current = { skill, items: [...pending] };
-    pending = [];
-  };
+const SUBJECT_TYPES = ['player', 'number', 'role', 'qual'];
 
+// Junta en un único «sujeto» las piezas seguidas que se refieren al mismo jugador:
+// «el punta 11», «Carlos, el 23» (sin coma), «el punta trasero».
+function mergeSubjects(toks) {
+  const out = [];
+  let target = false;
   for (const t of toks) {
-    if (t.type === 'cut') {
-      if (current) { current.items.push(...pending); pending = []; flush(); }
-      continue;
-    }
-    if (t.type === 'soft') {
-      if (current) { current.items.push(...pending); pending = []; flush(); }
-      continue;
-    }
-    if (t.type === 'skill') {
-      // Si el grupo actual todavía no tiene acción, se la asignamos.
-      if (current && !current.skill) {
-        current.skill = t.value;
-        current.items.push(...pending);
-        pending = [];
-      } else {
-        newGroup(t.value);
+    if (t.type === 'prep') { target = true; continue; }
+    if (SUBJECT_TYPES.includes(t.type)) {
+      const last = out.at(-1);
+      const canMerge = last?.type === 'subj' && !(t.type === 'qual' ? last.qual : last[t.type] != null)
+        && !(t.type === 'player' && last.player) && !(t.type === 'number' && last.number);
+      if (canMerge) {
+        if (t.type === 'qual') last.qual = t.value; else last[t.type] = t;
+        continue;
       }
+      out.push({ type: 'subj', target, [t.type === 'qual' ? 'qual' : t.type]: t.type === 'qual' ? t.value : t });
+      target = false;
       continue;
     }
-    const isSubject = ['player', 'role', 'number', 'rival', 'qual'].includes(t.type);
-    if (isSubject) {
-      // Un sujeto nuevo tras un grupo que ya tiene sujeto y resultado abre otra acción.
-      if (current && current.items.some((x) => ['player', 'role', 'number'].includes(x.type)) && ['player', 'role', 'number'].includes(t.type)) {
-        flush();
-      }
-      if (current) current.items.push(t); else pending.push(t);
-      continue;
-    }
-    // Resultado o zona.
-    if (!current) newGroup(null);
-    current.items.push(t);
+    if (t.type !== 'unknown') target = t.type === 'rival' ? target : false;
+    out.push(t);
   }
-  if (current) current.items.push(...pending);
-  else if (pending.length) groups.push({ skill: null, items: pending });
-  flush();
-  return groups.filter((g) => g.skill || g.items.some((x) => x.type !== 'unknown'));
+  return out;
+}
+
+// Divide el texto en frases (por pausas y «y») y, dentro de cada frase, asigna a cada acción
+// su jugador (antes o después del verbo), su resultado y su zona.
+function groupActions(toks) {
+  const clauses = [[]];
+  for (const t of mergeSubjects(toks)) {
+    if (t.type === 'cut' || t.type === 'soft') { if (clauses.at(-1).length) clauses.push([]); continue; }
+    clauses.at(-1).push(t);
+  }
+  const groups = [];
+  for (const cl of clauses) {
+    if (!cl.length) continue;
+    const skills = cl.map((t, i) => (t.type === 'skill' ? i : -1)).filter((i) => i >= 0);
+    if (!skills.length) {
+      groups.push({ skill: null, subj: cl.find((t) => t.type === 'subj' && !t.target) ?? null, target: cl.find((t) => t.type === 'subj' && t.target) ?? null, items: cl });
+      continue;
+    }
+    const gs = skills.map((i) => ({ skill: cl[i].value, subj: null, target: null, items: [] }));
+    const groupFor = (i) => {
+      let k = skills.findIndex((s) => s > i) - 1;
+      if (k === -2) k = skills.length - 1; // después de la última acción
+      return k < 0 ? 0 : k;
+    };
+    cl.forEach((t, i) => {
+      if (t.type === 'skill') return;
+      if (t.type === 'subj') {
+        if (t.target) { gs[Math.max(0, groupFor(i))].target ??= t; return; }
+        const before = skills[0] > i;
+        let k = before ? 0 : groupFor(i);
+        // Sujeto entre dos acciones: es de la anterior si aún no tiene («recibe Carlos, remata Pablo»),
+        // si no, de la siguiente («Carlos recibe, Pablo remata»).
+        if (!before && gs[k].subj && k + 1 < gs.length) k += 1;
+        if (!gs[k].subj) gs[k].subj = t;
+        return;
+      }
+      gs[groupFor(i)].items.push(t);
+    });
+    groups.push(...gs);
+  }
+  return groups;
 }
 
 // ---------- Resolución ----------
@@ -246,22 +261,20 @@ function mapResult(skill, r) {
   return table[skill]?.[r] ?? null;
 }
 
-function resolvePlayer(items, skill, ctx) {
-  const player = items.find((x) => x.type === 'player');
-  if (player) return player.value;
-  const num = items.find((x) => x.type === 'number' && x.ours);
-  if (num) return num.ours;
-  const role = items.find((x) => x.type === 'role');
-  if (!role) return null;
-  const qual = items.find((x) => x.type === 'qual')?.value;
-  let cands = (ctx.onCourt || []).filter((c) => c.role === role.value);
-  if (qual) cands = cands.filter((c) => (qual === 'front' ? c.front : !c.front));
-  if (cands.length > 1) {
-    // Solo los delanteros atacan desde la red y bloquean; en recepción/defensa no se puede decidir.
-    if (['ataque', 'bloqueo'].includes(skill)) cands = cands.filter((c) => c.front);
-  }
+// Jugador al que se refiere un sujeto: nombre o dorsal mandan; si no, el puesto según la rotación.
+function resolveSubject(subj, skill, ctx) {
+  if (!subj) return null;
+  if (subj.player) return subj.player.value;
+  if (subj.number?.ours) return subj.number.ours;
+  if (!subj.role) return null;
+  let cands = (ctx.onCourt || []).filter((c) => c.role === subj.role.value);
+  if (subj.qual) cands = cands.filter((c) => (subj.qual === 'front' ? c.front : !c.front));
+  // Solo los delanteros atacan desde la red y bloquean; en recepción/defensa no se puede decidir.
+  if (cands.length > 1 && ['ataque', 'bloqueo'].includes(skill)) cands = cands.filter((c) => c.front);
   return cands.length === 1 ? cands[0].playerId : null;
 }
+
+const isRivalSubj = (subj) => Boolean(subj?.number && !subj.number.ours && subj.number.theirs && !subj.player && !subj.role);
 
 // Si no se dice la acción, se deduce del momento del punto.
 function inferSkill(prev, group, ctx, isFirst) {
@@ -269,10 +282,8 @@ function inferSkill(prev, group, ctx, isFirst) {
   if (['punto', 'blockout', 'bloqueado'].includes(r)) return 'ataque';
   if (r === 'toque') return 'bloqueo';
   if (!prev) return ctx.serving === 'them' && isFirst ? 'recepcion' : 'defensa';
-  if (prev.team === 'them' && prev.skill === 'ataque') return 'defensa';
-  if (['recepcion', 'defensa', 'apoyo', 'colocacion', 'free'].includes(prev.skill) && prev.team === 'them') return 'defensa';
-  if (['recepcion', 'defensa', 'apoyo'].includes(prev.skill)) return 'ataque';
-  if (prev.skill === 'colocacion') return 'ataque';
+  if (prev.team === 'them') return 'defensa';
+  if (['recepcion', 'defensa', 'apoyo', 'colocacion'].includes(prev.skill)) return 'ataque';
   return null;
 }
 
@@ -280,51 +291,64 @@ export function parse(text, ctx) {
   const toks = tokenize(text || '', ctx);
   const groups = groupActions(toks);
   const actions = [];
+  let pendingAttacker = null; // «coloca a X»: X es el atacante siguiente
 
   groups.forEach((g, idx) => {
+    const prev = actions.at(-1);
+    const r = g.items.filter((x) => x.type === 'result').at(-1)?.value ?? null;
+    const zone = g.items.find((x) => x.type === 'zone')?.value ?? null;
+    const rivalMark = g.items.some((x) => x.type === 'rival');
+
     // Resultado o zona sueltos tras una pausa («Carlos ataca por 4, punto»): completan la acción anterior.
-    const prevAction = actions.at(-1);
-    const orphan = !g.skill && g.items.every((x) => ['result', 'zone', 'unknown'].includes(x.type));
-    if (orphan && prevAction && !prevAction.result) {
-      const r = g.items.filter((x) => x.type === 'result').at(-1)?.value;
-      const z = g.items.find((x) => x.type === 'zone')?.value;
-      if (prevAction.team === 'us') prevAction.result = mapResult(prevAction.skill, r) ?? prevAction.result;
-      else if (r === 'punto' || r === 'error') prevAction.result = r;
-      if (z && !prevAction.zone) prevAction.zone = z;
+    if (!g.skill && !g.subj && !g.target && !rivalMark && prev) {
+      if (!prev.result) prev.result = prev.team === 'us' ? mapResult(prev.skill, r) : (r === 'punto' || r === 'error' ? r : null);
+      if (zone && !prev.zone) prev.zone = zone;
       return;
     }
-    const isRival = g.items.some((x) => x.type === 'rival')
-      || (!g.items.some((x) => ['player', 'role'].includes(x.type)) && g.items.some((x) => x.type === 'number' && !x.ours && x.theirs));
-    const prev = actions.at(-1);
-    let skill = g.skill;
-    const inferred = !skill;
-    if (!skill) skill = isRival ? 'ataque' : inferSkill(prev, g, ctx, idx === 0);
-    // «coloca» como puesto en vez de verbo: «el coloca ataca» es raro; lo dejamos como colocación.
-    const rawResult = g.items.filter((x) => x.type === 'result').at(-1)?.value ?? null;
-    const zone = g.items.find((x) => x.type === 'zone')?.value ?? null;
-    const team = isRival ? 'them' : 'us';
+    if (!g.skill && !g.subj && !g.target && !r && !zone && !rivalMark) return;
 
-    const action = {
-      skill,
-      team,
-      playerId: null,
-      rivalPlayerId: null,
-      zone,
-      result: null,
-      inferredSkill: inferred,
-    };
+    const team = rivalMark || isRivalSubj(g.subj) ? 'them' : 'us';
+    let skill = g.skill ?? (team === 'them' ? 'ataque' : inferSkill(prev, g, ctx, idx === 0));
+    const action = { skill, team, playerId: null, rivalPlayerId: null, zone, result: null, inferredSkill: !g.skill };
+
     if (team === 'us') {
-      action.playerId = skill === 'saque' && ctx.serving === 'us' && !g.items.some((x) => ['player', 'role', 'number'].includes(x.type))
-        ? ctx.serverId ?? null
-        : resolvePlayer(g.items, skill, ctx);
-      action.result = skill === 'free' ? 'free' : mapResult(skill, rawResult);
+      let player = resolveSubject(g.subj, skill, ctx);
+      if (!player && skill === 'saque' && ctx.serving === 'us') player = ctx.serverId ?? null;
+      if (!player && skill === 'colocacion') player = ctx.setterId ?? null; // coloca quien está de colocador
+      if (!player && skill === 'ataque' && pendingAttacker) player = pendingAttacker;
+      action.playerId = player;
+      action.result = skill === 'free' ? 'free' : mapResult(skill, r);
     } else {
-      action.rivalPlayerId = g.items.find((x) => x.type === 'number' && x.theirs)?.theirs ?? null;
-      action.result = rawResult === 'punto' ? 'punto' : rawResult === 'error' ? 'error' : null;
+      action.rivalPlayerId = g.subj?.number?.theirs ?? null;
+      action.result = r === 'punto' || r === 'error' ? r : null;
     }
-    if (!skill) action.skill = null;
+    if (skill === 'ataque') pendingAttacker = null;
+    if (g.target && team === 'us') pendingAttacker = resolveSubject(g.target, 'ataque', ctx);
     actions.push(action);
   });
+
+  // «coloca a X» sin decir luego «X ataca»: el ataque de X se da por hecho.
+  if (pendingAttacker) {
+    actions.push({ skill: 'ataque', team: 'us', playerId: pendingAttacker, rivalPlayerId: null, zone: null, result: null, inferredSkill: true });
+  }
+
+  // Primer/segundo toque sin calidad: si después atacamos (o colocamos), fue bueno; si pasamos FREE, malo.
+  actions.forEach((a, i) => {
+    const next = actions[i + 1];
+    if (a.team !== 'us' || a.result || !next || next.team !== 'us') return;
+    if (['recepcion', 'defensa', 'apoyo', 'colocacion'].includes(a.skill)) {
+      if (['ataque', 'colocacion'].includes(next.skill)) a.result = 'buena';
+      else if (next.skill === 'free' && a.skill !== 'colocacion') a.result = 'mala';
+      if (a.result) a.inferredResult = true;
+    }
+  });
+
+  // Si el punto fue nuestro y lo último es nuestro ataque/bloqueo sin resultado, fue punto.
+  const last = actions.at(-1);
+  if (ctx.pointTo === 'us' && last?.team === 'us' && !last.result && ['ataque', 'bloqueo'].includes(last.skill)) {
+    last.result = 'punto';
+    last.inferredResult = true;
+  }
 
   const unknown = toks.filter((t) => t.type === 'unknown').map((t) => t.value);
   return { actions, unknown, cause: deriveCause(actions, ctx.pointTo) };

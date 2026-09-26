@@ -42,6 +42,7 @@ export function renderVoiceReview(el, { id }) {
       ${hasTranscriber() ? '' : html`<p class="small">Para transcribir los audios configura la clave en <a href="#/datos">Datos → Registro por voz</a>. Mientras, puedes escribir el texto de cada punto.</p>`}
       <div class="form-actions">
         <button class="btn" id="retry">Reintentar pendientes</button>
+        <button class="btn" id="reparse">Reanalizar todos</button>
         <button class="btn" id="export">Exportar plantillas (JSON)</button>
       </div>
     </section>
@@ -59,6 +60,16 @@ export function renderVoiceReview(el, { id }) {
     });
     kickQueue();
     toast('Reintentando…');
+    rerender();
+  });
+  // Tras mejorar el analizador: vuelve a analizar el texto de todos los puntos (sin volver a transcribir).
+  el.querySelector('#reparse').addEventListener('click', () => {
+    unsub?.();
+    let n = 0;
+    Object.entries(match.voice || {}).forEach(([key, m]) => {
+      if (m.transcript && !m.actions?.some((a) => a.edited)) { processText(match.id, key, m.transcript); n++; }
+    });
+    toast(`${n} puntos reanalizados (los corregidos a mano no se tocan)`);
     rerender();
   });
   el.querySelector('#export').addEventListener('click', () => {
@@ -133,7 +144,7 @@ function templateLine(match, a) {
   return html`
     <div class="template-line ${miss.length ? 'incomplete' : ''}">
       <span class="t-skill">${a.team === 'them' ? `${SKILL_LABEL[a.skill] ?? a.skill} rival` : SKILL_LABEL[a.skill] ?? '¿Acción?'}${a.auto ? ' (auto)' : ''}:</span>
-      <span>${name ?? html`<i class="muted">¿jugador?</i>`}${a.zone ? ` · zona ${a.zone}` : ''}${resultLabel ? ` · ${resultLabel}` : a.team === 'us' && a.skill !== 'free' ? html` · <i class="muted">¿resultado?</i>` : ''}</span>
+      <span>${name ?? html`<i class="muted">¿jugador?</i>`}${a.zone ? ` · zona ${a.zone}` : ''}${resultLabel ? ` · ${resultLabel}` : a.team === 'us' && a.skill !== 'free' ? html` · <i class="muted">¿resultado?</i>` : ''}${a.inferredResult ? html` <i class="muted small">(deducido)</i>` : ''}</span>
     </div>
   `;
 }

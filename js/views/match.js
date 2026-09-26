@@ -14,7 +14,7 @@ import { openRivalEditor } from './rivals.js';
 import * as recorder from '../voice/recorder.js';
 import { putAudio, deleteAudio, audioId } from '../voice/db.js';
 import { kickQueue, onVoiceChange, voiceSummary, processText } from '../voice/queue.js';
-import { hasTranscriber, dictationMethod, saveVoiceSettings } from '../voice/transcribe.js';
+import { hasTranscriber } from '../voice/transcribe.js';
 
 // ---------- Nuevo partido ----------
 
@@ -636,7 +636,8 @@ function renderVoiceLive(el, match, st, rerender) {
   const server = st.serving === 'us' ? playerById(layout[0].playerId) : null;
   const recording = recorder.isRecording();
   const supported = recorder.isSupported();
-  const keyboard = dictationMethod() === 'teclado';
+  // Método de dictado por partido: Groq por defecto; el teclado queda como alternativa.
+  const keyboard = (match.dictation ?? 'groq') === 'teclado';
   const rallies = Object.entries(match.voice || {})
     .filter(([, m]) => m.set === match.currentSet)
     .sort((a, b) => b[1].rally - a[1].rally)
@@ -769,7 +770,7 @@ function renderVoiceLive(el, match, st, rerender) {
 
   el.querySelectorAll('[data-method]').forEach((b) => b.addEventListener('click', () => {
     if (recorder.isRecording()) recorder.cancelRecording();
-    saveVoiceSettings({ method: b.dataset.method });
+    updateMatch(match.id, { dictation: b.dataset.method });
     rerender();
   }));
   el.querySelector('#rec')?.addEventListener('click', async () => {

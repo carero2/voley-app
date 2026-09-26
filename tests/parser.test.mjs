@@ -20,7 +20,7 @@ const onCourt = [
   { playerId: 'ana', zone: 1, front: false, role: 'colocador' },
 ];
 const rivals = [{ id: 'r8', number: '8', name: 'Marta' }];
-const ctx = (extra = {}) => ({ players, onCourt, rivals, serving: 'them', serverId: null, pointTo: 'us', ...extra });
+const ctx = (extra = {}) => ({ players, onCourt, rivals, serving: 'them', serverId: null, setterId: 'ana', pointTo: 'us', ...extra });
 
 const cases = [
   ['Carlos recibe bien, Carlos ataca por 4, punto', ctx(),
@@ -47,6 +47,24 @@ const cases = [
     [{ skill: 'saque', playerId: 'ana', result: 'enjuego' }, { skill: 'ataque', team: 'them' }, { skill: 'defensa', playerId: null, result: 'mala' }]],
   ['Marinez recibe bien', ctx(),
     [{ skill: 'recepcion', playerId: 'eva', result: 'buena' }]],
+  // Frases reales dictadas en un partido:
+  ['Recibe el punta trasero, coloca a punta delantero y remata dentro', ctx(),
+    [{ skill: 'recepcion', playerId: 'eva' }, { skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'carlos', result: 'punto' }]],
+  ['Recibe el punta 11 y remata el opuesto.', ctx({ pointTo: 'them' }),
+    [{ skill: 'recepcion', playerId: 'eva' }, { skill: 'ataque', playerId: 'pablo', result: null }]],
+  ['Recibe el punta 11 y remata el opuesto.', ctx({ pointTo: 'us' }),
+    [{ skill: 'recepcion', playerId: 'eva' }, { skill: 'ataque', playerId: 'pablo', result: 'punto' }]],
+  // Variantes de orden y forma:
+  ['remata el central por la 3', ctx(),
+    [{ skill: 'ataque', playerId: 'dani', zone: 3, result: 'punto' }]],
+  ['Carlos el 23 ataca fuera', ctx({ pointTo: 'them' }),
+    [{ skill: 'ataque', playerId: 'carlos', result: 'error' }]],
+  ['coloca Ana a Pablo, punto', ctx(),
+    [{ skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'pablo', result: 'punto' }]],
+  ['recibe Simón bien, remata Carlos, bloqueado', ctx({ pointTo: 'them' }),
+    [{ skill: 'recepcion', playerId: 'simon', result: 'buena' }, { skill: 'ataque', playerId: 'carlos', result: 'bloqueado' }]],
+  ['defiende el líbero, coloca a la central y ataca por el centro', ctx({ serving: 'us', serverId: 'ana' }),
+    [{ skill: 'defensa', playerId: 'simon' }, { skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'dani', zone: 3, result: 'punto' }]],
 ];
 
 let ok = 0;

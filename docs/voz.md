@@ -18,7 +18,7 @@
 6. **Revisión** (`#/partido/<id>/voz`): audio, texto editable, plantilla, corrección manual y
    porcentaje de acciones completas.
 
-## Dos métodos de dictado (se elige en la pantalla del partido)
+## Dos métodos de dictado (se elige en la pantalla del partido; Groq por defecto en cada partido nuevo)
 
 - **Grabar (Groq):** se graba el audio de cada punto y se transcribe en segundo plano. Guarda el audio
   (se puede escuchar y reprocesar) y usa el vocabulario y los nombres de la plantilla. Necesita conexión
@@ -43,8 +43,20 @@ No hace falta un orden fijo. El analizador reconoce por palabras clave:
 | Zona | «por 4», «zona 2», «por la 3», «desde 1», «pipe» |
 | Rival | «rival», «ellos», «contrario», o un dorsal de la plantilla rival |
 
-Si no se dice la acción, se deduce del momento del punto (p. ej. primer toque cuando saca el rival = recepción).
-Lo que no se entiende se deja vacío. Nunca se inventa.
+Reglas de interpretación:
+
+- Un jugador dicho de dos formas seguidas es el mismo: «el punta 11», «Carlos el 23».
+- El jugador puede ir antes o después del verbo: «Carlos remata», «remata Carlos», «remata el opuesto».
+- «coloca a X» / «para X»: X es el atacante siguiente; el colocador es el que está en pista.
+- Los puestos se buscan en la alineación de ese set (el hueco que ocupa cada jugador), no en su ficha.
+- Si no se dice la acción, se deduce del momento del punto (p. ej. primer toque cuando saca el rival = recepción).
+- Calidades deducidas (marcadas «(deducido)» en la revisión): recepción/defensa/apoyo/colocación seguidas
+  de nuestro ataque = buenas; seguidas de una FREE nuestra = malas; si el punto fue nuestro y lo último es
+  nuestro ataque o bloqueo sin resultado = punto.
+- Lo que no se entiende se deja vacío. Nunca se inventa.
+
+Tras mejorar el analizador, «Reanalizar todos» en la revisión vuelve a aplicar las reglas a los textos ya
+transcritos (sin volver a llamar a Groq); los puntos corregidos a mano no se tocan.
 
 Ejemplos: «Carlos recibe bien, el punta ataca por 4, punto» · «ataque rival por la 2, defensa buena del líbero, el opuesto tira fuera».
 

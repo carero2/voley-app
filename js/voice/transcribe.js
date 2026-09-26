@@ -20,10 +20,6 @@ export function saveVoiceSettings(patch) {
   return next;
 }
 
-// Método de dictado: 'groq' (se graba el audio y se transcribe en segundo plano) o
-// 'teclado' (se dicta con el micrófono del teclado del móvil directamente en un cuadro de texto).
-export const dictationMethod = () => voiceSettings().method ?? 'groq';
-
 export const hasTranscriber = () => Boolean(voiceSettings().groqKey);
 
 const extFor = (type) => (type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : 'webm');
