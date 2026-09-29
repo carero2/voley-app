@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etiquetar puntos</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#15171a; --muted:#6b7280; --line:#e2e5ea; --a:#2563eb; --b:#ea580c; --accent:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111317; --card:#1b1e24; --text:#eef0f3; --muted:#9aa1ad; --line:#2c313a; --a:#60a5fa; --b:#fb923c; --accent:#2dd4bf; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.4 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:12px 16px 40px; }
+  h1 { font-size:20px; margin:8px 0 4px; }
+  p.hint { color:var(--muted); margin:0 0 12px; font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  video { width:100%; max-height:60vh; background:#000; border-radius:8px; display:block; }
+  button, select, label.file { font:inherit; padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; }
+  button:active { transform:scale(.97); }
+  .big { font-weight:600; padding:14px 18px; }
+  .pa { background:var(--a); color:#fff; border-color:transparent; }
+  .pb { background:var(--b); color:#fff; border-color:transparent; }
+  .start { background:var(--accent); color:#fff; border-color:transparent; }
+  .score { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .score .a { color:var(--a); } .score .b { color:var(--b); }
+  .muted { color:var(--muted); font-size:14px; }
+  ol { margin:0; padding-left:0; list-style:none; max-height:40vh; overflow:auto; }
+  li { display:flex; gap:8px; align-items:center; padding:6px 4px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  li .t { cursor:pointer; text-decoration:underline; min-width:78px; }
+  li .x { margin-left:auto; padding:4px 10px; }
+  kbd { border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12px; }
+  input[type=file] { display:none; }
+  .grid { display:grid; grid-template-columns: 1fr; gap:12px; }
+  @media (min-width: 900px) { .grid { grid-template-columns: 2fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Etiquetar puntos del vídeo</h1>
+  <p class="hint">El vídeo se abre en este dispositivo: no se sube a ningún sitio. Marca cuándo termina cada punto y qué campo lo gana; el inicio (saque) es opcional. Se guarda solo mientras trabajas; al acabar pulsa <b>Descargar etiquetas</b>.</p>
+
+  <div class="card row">
+    <label class="file">Abrir vídeo<input type="file" id="file" accept="video/*"></label>
+    <label class="file">Abrir etiquetas (.json)<input type="file" id="load" accept="application/json,.json"></label>
+    <select id="view" aria-label="Posición de la cámara">
+      <option value="lateral">Cámara en un lateral</option>
+      <option value="fondo">Cámara detrás de un fondo</option>
+    </select>
+    <span class="muted" id="name">Ningún vídeo abierto</span>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <video id="video" playsinline controls></video>
+        <div class="row" style="margin-top:8px">
+          <button data-seek="-5">−5 s</button>
+          <button data-seek="-1">−1 s</button>
+          <button data-seek="-0.0333">◀ fot.</button>
+          <button id="play">⏯</button>
+          <button data-seek="0.0333">fot. ▶</button>
+          <button data-seek="1">+1 s</button>
+          <button data-seek="5">+5 s</button>
+          <select id="rate" aria-label="Velocidad">
+            <option value="0.5">0,5×</option><option value="1" selected>1×</option>
+            <option value="1.5">1,5×</option><option value="2">2×</option><option value="3">3×</option>
+          </select>
+        </div>
+      </div>
+      <div class="card row">
+        <button class="big start" id="bStart">Inicio punto (saque) <kbd>S</kbd></button>
+        <button class="big pa" id="bA">Punto A <kbd>A</kbd></button>
+        <button class="big pb" id="bB">Punto B <kbd>D</kbd></button>
+        <button id="bSet">Fin de set <kbd>F</kbd></button>
+        <button id="bUndo">Deshacer <kbd>Z</kbd></button>
+      </div>
+      <p class="muted">Teclado: <kbd>Espacio</kbd> reproducir/pausa · <kbd>←</kbd>/<kbd>→</kbd> ±1 s · <kbd>,</kbd>/<kbd>.</kbd> fotograma a fotograma. Truco: a 2× o 3× se etiqueta un partido en poco tiempo; al final del punto, pausa y marca.</p>
+    </div>
+    <div>
+      <div class="card">
+        <div class="score" id="score"></div>
+        <div class="muted" id="sides"></div>
+      </div>
+      <div class="card">
+        <ol id="list"></ol>
+      </div>
+      <div class="card row">
+        <button id="export" class="big">Descargar etiquetas</button>
+        <button id="clear">Borrar todo</button>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const video = $('#video');
+let state = { video: null, view: 'lateral', events: [] };
+let key = null;
+
+const SIDE_NAMES = {
+  lateral: { A: 'A (campo izquierdo)', B: 'B (campo derecho)' },
+  fondo: { A: 'A (campo cercano)', B: 'B (campo lejano)' },
+};
+
+function save() {
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(state)); } catch { /* sin almacenamiento */ }
+}
+
+function fmt(t) {
+  const m = Math.floor(t / 60);
+  return `${m}:${(t - m * 60).toFixed(1).padStart(4, '0')}`;
+}
+
+function add(type, side) {
+  if (!state.video) return alert('Abre primero el vídeo.');
+  state.events.push({ t: Math.round(video.currentTime * 100) / 100, type, ...(side ? { side } : {}) });
+  state.events.sort((a, b) => a.t - b.t);
+  save();
+  render();
+}
+
+function render() {
+  const names = SIDE_NAMES[state.view];
+  $('#bA').firstChild.textContent = `Punto ${state.view === 'lateral' ? 'izquierda' : 'cerca'} (A) `;
+  $('#bB').firstChild.textContent = `Punto ${state.view === 'lateral' ? 'derecha' : 'lejos'} (B) `;
+  $('#view').value = state.view;
+  // Marcador por sets.
+  let set = 1, a = 0, b = 0;
+  const sets = [];
+  const rows = state.events.map((e, i) => {
+    let label;
+    if (e.type === 'point') {
+      e.side === 'A' ? a++ : b++;
+      label = `Punto ${names[e.side]} · ${a}-${b}`;
+    } else if (e.type === 'start') {
+      label = 'Inicio de punto';
+    } else {
+      sets.push(`${a}-${b}`);
+      label = `Fin del set ${set} (${a}-${b})`;
+      set++; a = 0; b = 0;
+    }
+    return `<li><span class="t" data-t="${e.t}">${fmt(e.t)}</span><span>${label}</span><button class="x" data-del="${i}" aria-label="Borrar">✕</button></li>`;
+  });
+  $('#list').innerHTML = rows.reverse().join('') || '<li class="muted">Sin etiquetas todavía.</li>';
+  $('#score').innerHTML = `Set ${set}: <span class="a">A ${a}</span> – <span class="b">${b} B</span>`;
+  $('#sides').textContent = sets.length ? `Sets anteriores: ${sets.join(', ')}` : 'Recuerda: al cambiar de campo entre sets, A sigue siendo el mismo lado del vídeo.';
+}
+
+$('#file').addEventListener('change', (ev) => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  video.src = URL.createObjectURL(f);
+  key = `voley-etiquetas:${f.name}:${f.size}`;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(key)); } catch { /* nada guardado */ }
+  state = saved || { video: f.name, view: state.view, events: [] };
+  state.video = f.name;
+  $('#name').textContent = `${f.name}${saved ? ' · etiquetas recuperadas' : ''}`;
+  render();
+});
+
+$('#load').addEventListener('change', async (ev) => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    state.events = (data.events || []).sort((a, b) => a.t - b.t);
+    state.view = data.view || state.view;
+    save();
+    render();
+  } catch { alert('El archivo no es un JSON de etiquetas válido.'); }
+});
+
+$('#view').addEventListener('change', (e) => { state.view = e.target.value; save(); render(); });
+$('#rate').addEventListener('change', (e) => { video.playbackRate = Number(e.target.value); });
+$('#play').addEventListener('click', () => (video.paused ? video.play() : video.pause()));
+document.querySelectorAll('[data-seek]').forEach((b) => b.addEventListener('click', () => {
+  video.currentTime = Math.max(0, video.currentTime + Number(b.dataset.seek));
+}));
+$('#bStart').addEventListener('click', () => add('start'));
+$('#bA').addEventListener('click', () => add('point', 'A'));
+$('#bB').addEventListener('click', () => add('point', 'B'));
+$('#bSet').addEventListener('click', () => add('set'));
+$('#bUndo').addEventListener('click', () => {
+  // Deshace la última etiqueta añadida en el tiempo más cercano al actual.
+  if (!state.events.length) return;
+  let best = 0;
+  state.events.forEach((e, i) => { if (Math.abs(e.t - video.currentTime) < Math.abs(state.events[best].t - video.currentTime)) best = i; });
+  state.events.splice(best, 1);
+  save();
+  render();
+});
+$('#list').addEventListener('click', (e) => {
+  const t = e.target.closest('[data-t]');
+  if (t) { video.currentTime = Number(t.dataset.t); return; }
+  const d = e.target.closest('[data-del]');
+  if (d) { state.events.splice(Number(d.dataset.del), 1); save(); render(); }
+});
+$('#export').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ version: 1, ...state }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(state.video || 'video').replace(/\.[^.]+$/, '')}_etiquetas.json`;
+  a.click();
+});
+$('#clear').addEventListener('click', () => {
+  if (confirm('¿Borrar todas las etiquetas de este vídeo?')) { state.events = []; save(); render(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const k = e.key.toLowerCase();
+  if (k === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+  else if (k === 's') add('start');
+  else if (k === 'a') add('point', 'A');
+  else if (k === 'd') add('point', 'B');
+  else if (k === 'f') add('set');
+  else if (k === 'z') $('#bUndo').click();
+  else if (k === 'arrowleft') video.currentTime -= 1;
+  else if (k === 'arrowright') video.currentTime += 1;
+  else if (k === ',') video.currentTime -= 1 / 30;
+  else if (k === '.') video.currentTime += 1 / 30;
+});
+render();
+</script>
+</body>
+</html>

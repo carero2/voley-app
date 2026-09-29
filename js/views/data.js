@@ -43,6 +43,13 @@ export function renderData(el) {
     </section>
 
     <section class="card stack">
+      <h2>Análisis de vídeo (pruebas)</h2>
+      <p class="small muted">Marca en un vídeo del partido cuándo acaba cada punto y qué campo lo gana. El vídeo se abre en este dispositivo y no se sube a ningún sitio.</p>
+      <a class="btn" href="video/etiquetar/" target="_blank" rel="noopener">Etiquetar puntos de un vídeo</a>
+      <a class="small" href="https://colab.research.google.com/github/carero2/voley-app/blob/claude/volleyball-stats-github-pages-cf7xwk/video/notebooks/prueba_colab.ipynb" target="_blank" rel="noopener">Abrir el cuaderno de análisis en Google Colab</a>
+    </section>
+
+    <section class="card stack">
       <h2>Importar</h2>
       <p class="muted small">Carga una copia JSON. «Combinar» añade los clubes, jugadores y partidos que no tengas; «Reemplazar» borra todo lo actual. Una copia antigua (de antes de los clubes) se carga en el club activo.</p>
       <input type="file" id="file" accept="application/json,.json" hidden />

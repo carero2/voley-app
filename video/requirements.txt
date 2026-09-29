@@ -1,0 +1,6 @@
+# En Colab PyTorch ya viene instalado. En el Mac: pip install torch torchvision (usa la GPU del chip M).
+rfdetr>=1.11
+supervision>=0.26,<0.31  # ByteTrack desaparece en 0.31
+opencv-python-headless>=4.9  # en el Mac, para calibrar con ventana: opencv-python
+numpy
+tqdm

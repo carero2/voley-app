@@ -82,6 +82,7 @@ js/help.js            Textos de ayuda de las métricas
 js/voice/             Registro por voz: grabación, audios (IndexedDB), transcripción, cola y analizador
 tests/                Pruebas del analizador de voz (node tests/parser.test.mjs)
 docs/voz.md           Cómo funciona y cómo ampliar el registro por voz
+video/                Análisis de vídeo (Python: RF-DETR + reglas), cuaderno de Colab y herramienta para etiquetar puntos
 js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, datos, clubes, rivales
 sw.js                 Service worker (uso sin conexión)
 ```
