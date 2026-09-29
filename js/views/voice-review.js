@@ -144,7 +144,7 @@ function templateLine(match, a) {
   return html`
     <div class="template-line ${miss.length ? 'incomplete' : ''}">
       <span class="t-skill">${a.team === 'them' ? `${SKILL_LABEL[a.skill] ?? a.skill} rival` : SKILL_LABEL[a.skill] ?? '¿Acción?'}${a.auto ? ' (auto)' : ''}:</span>
-      <span>${name ?? html`<i class="muted">¿jugador?</i>`}${a.zone ? ` · zona ${a.zone}` : ''}${resultLabel ? ` · ${resultLabel}` : a.team === 'us' && a.skill !== 'free' ? html` · <i class="muted">¿resultado?</i>` : ''}${a.inferredResult ? html` <i class="muted small">(deducido)</i>` : ''}</span>
+      <span>${name ?? html`<i class="muted">¿jugador?</i>`}${a.zone ? html` · zona ${a.zone}${a.inferredZone ? html` <i class="muted small">(por rotación)</i>` : ''}` : ''}${resultLabel ? ` · ${resultLabel}` : a.team === 'us' && a.skill !== 'free' ? html` · <i class="muted">¿resultado?</i>` : ''}${a.inferredResult ? html` <i class="muted small">(deducido)</i>` : ''}</span>
     </div>
   `;
 }

@@ -35,15 +35,15 @@ No hace falta un orden fijo. El analizador reconoce por palabras clave:
 
 | Qué | Ejemplos |
 |---|---|
-| Jugador por nombre | «Carlos», «Simón» (tolera un error de transcripción en nombres de 5+ letras) |
+| Jugador por nombre | «Carlos», «Simón» (tolera un error de transcripción en nombres de 5+ letras); también abreviado si solo encaja con uno («Mert» → Mertinho) |
 | Jugador por dorsal | «el 10», «diez» |
 | Jugador por puesto | «el punta», «la central», «el opuesto», «el líbero», «el colocador», «el punta zaguero/delantero» |
 | Acción | saque/saca, recibe/recepción, coloca, ataca/remata/tira, bloqueo/bloquea, defensa/defiende, apoyo/cubre |
 | FREE | «free», «fri», «bola fácil»; «nos pasan free» / «pasan free» (rival), «pasamos free», «free del opuesto» (nuestra) |
 | Equipo por el verbo | «atacan», «rematan», «sacan», «pasan» = rival; «atacamos», «rematamos», «recibimos», «pasamos» = nosotros |
 | Resultado | bien/buena, mal/mala, error/fuera/red, punto/gana, blockout, bloqueado/tapado, toque |
-| Zona | «por 4», «zona 2», «por la 3», «desde 1», «pipe» |
-| Rival | «rival», «ellos», «contrario», o un dorsal de la plantilla rival |
+| Zona | «por 4», «zona 2», «por la 3», «desde 1», «pipe», «por centro»; del rival también por puesto: «atacan por opuesto» (2), «por punta» (4), «por central» (3) |
+| Rival | «rival», «ellos», «contrario», «consiguen/logran…», o un dorsal de la plantilla rival |
 
 Reglas de interpretación:
 
@@ -57,6 +57,20 @@ Reglas de interpretación:
   Excepción (5-1, R1 recibiendo): el punta delantero recibe en Z1 y remata por Z2; el opuesto remata por Z4.
   Las excepciones están en `PLAY_SWAPS` (js/rally.js) y se pueden añadir más.
 - Nuestro ataque seguido de una acción del rival («ellos defienden y atacan») queda «en juego».
+- Se sigue en qué campo está el balón: una acción sin jugador ni marca de equipo es del equipo que lo tiene.
+  «Consiguen defender y colocan a 4, remata» → remata el rival (por 4); tras un ataque o FREE rival vuelve a
+  ser nuestro. «colocan a 4» / «coloca a centro» en su campo anuncia un ataque rival por esa zona aunque no
+  se diga («…coloca a centro, defiende Nacho» = ataque rival por 3).
+- «coloca a X» sin decir después el ataque: si sigue una acción del rival, el ataque de X se da por hecho
+  (en juego).
+- «Saca a Mert», «defiende a Joan»: la «a» que añade la transcripción se ignora. «Coloca a Mert a opuesto»:
+  el primero es quien coloca y el segundo el destinatario.
+- Nuestro saque seguido de cualquier otra acción = en juego.
+- El primer toque tras el saque rival es recepción aunque se diga «defiende».
+- Zona por rotación (marcada «(por rotación)»): si no se dice, cada acción nuestra toma la zona en la que
+  juega ese jugador en ese punto: recepción según la formación de recepción, el resto según las posiciones
+  de ataque/defensa (con las excepciones de `PLAY_SWAPS`, p. ej. en R1 recibiendo el punta delantero recibe
+  en Z1 y ataca por Z2).
 - Los puestos se buscan en la alineación de ese set (el hueco que ocupa cada jugador), no en su ficha.
 - Si no se dice la acción, se deduce del momento del punto (p. ej. primer toque cuando saca el rival = recepción).
 - «Recibe» solo es recepción en el primer toque tras el saque rival; en cualquier otro momento (tras un ataque,

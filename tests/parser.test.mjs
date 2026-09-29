@@ -120,6 +120,57 @@ const cases = [
     [{ skill: 'colocacion', playerId: 'ana' }, { skill: 'ataque', playerId: 'pablo', result: 'punto' }]],
 ];
 
+// Frases reales dictadas con Groq (plantilla con nombres reales).
+const team = [
+  { id: 'mert', number: '3', name: 'Mertinho', position: 'colocador' },
+  { id: 'joan', number: '4', name: 'Joan', position: 'receptor' },
+  { id: 'simon', number: '10', name: 'Simon', position: 'receptor' },
+  { id: 'nacho', number: '11', name: 'Nacho', position: 'libero' },
+  { id: 'robert', number: '26', name: 'Robert', position: 'central' },
+  { id: 'andrii', number: '8', name: 'Andrii', position: 'opuesto' },
+  { id: 'pau', number: '5', name: 'Pau', position: 'central' },
+];
+// 5-1 en R1: colocador en Z1, Joan (punta) en Z2, Robert en Z3, Andrii (opuesto) en Z4, Simon en Z5, Nacho (líbero) en Z6.
+const r1Court = [
+  { playerId: 'mert', zone: 1, front: false, role: 'colocador' },
+  { playerId: 'joan', zone: 2, front: true, role: 'receptor' },
+  { playerId: 'robert', zone: 3, front: true, role: 'central' },
+  { playerId: 'andrii', zone: 4, front: true, role: 'opuesto' },
+  { playerId: 'simon', zone: 5, front: false, role: 'receptor' },
+  { playerId: 'nacho', zone: 6, front: false, role: 'libero' },
+];
+const r1 = (extra) => ({
+  players: team, onCourt: r1Court, rivals: [], serverId: null, setterId: 'mert', pointTo: 'us', ...extra,
+});
+// Recibiendo en R1: Joan recibe en Z1 y ataca por Z2; Andrii ataca por Z4.
+const r1Receiving = r1({
+  serving: 'them',
+  attackZones: { 4: 'andrii', 3: 'robert', 2: 'joan', 6: 'simon' },
+  zones: {
+    reception: { joan: 1, simon: 5, nacho: 6, mert: 1, robert: 3, andrii: 4 },
+    play: { andrii: 4, robert: 3, joan: 2, simon: 6, nacho: 5, mert: 1 },
+  },
+});
+const r1Serving = r1({
+  serving: 'us', serverId: 'mert',
+  attackZones: { 4: 'joan', 3: 'robert', 2: 'andrii', 6: 'simon' },
+});
+cases.push(
+  ['Saca a Mert, consiguen defender y colocan a 4, remata, defiende Simon, coloca a Mert a opuesto, defienden, coloca a centro, defiende Nacho, coloca a centro y Robert hace punto. Gracias.',
+    r1Serving,
+    [{ skill: 'saque', playerId: 'mert', result: 'enjuego' }, { skill: 'ataque', team: 'them', zone: 4 },
+      { skill: 'defensa', playerId: 'simon', result: 'buena' }, { skill: 'colocacion', playerId: 'mert', result: 'buena' },
+      { skill: 'ataque', playerId: 'andrii', result: 'enjuego' }, { skill: 'ataque', team: 'them', zone: 3 },
+      { skill: 'defensa', playerId: 'nacho', result: 'buena' }, { skill: 'colocacion', playerId: 'mert', result: 'buena' },
+      { skill: 'ataque', playerId: 'robert', zone: 3, result: 'punto' }]],
+  ['Defiende Joan, coloca Mert a Joan, ataca, defienden y atacan por opuesto, defiende Nacho, coloca a punta y punto.',
+    r1Receiving,
+    [{ skill: 'recepcion', playerId: 'joan', zone: 1, result: 'buena' }, { skill: 'colocacion', playerId: 'mert', result: 'buena' },
+      { skill: 'ataque', playerId: 'joan', zone: 2, result: 'enjuego' }, { skill: 'ataque', team: 'them', zone: 2 },
+      { skill: 'defensa', playerId: 'nacho', result: 'buena' }, { skill: 'colocacion', playerId: 'mert', result: 'buena' },
+      { skill: 'ataque', playerId: 'joan', zone: 2, result: 'punto' }]],
+);
+
 let ok = 0;
 for (const [text, c, expected] of cases) {
   const { actions, cause } = parse(text, c);

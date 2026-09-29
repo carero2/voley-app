@@ -64,6 +64,11 @@ export function buildContext(match, meta) {
     serverId: ctx.st.serving === 'us' ? layout[0].playerId : null,
     setterId: suggestedSetter(ctx.st, (id) => playerById(id)?.position),
     attackZones: attackZones(ctx.st, layout, slotRoles),
+    // Zona en la que juega cada uno en recepción y en ataque/defensa (incluye excepciones como R1 en 5-1).
+    zones: {
+      reception: Object.fromEntries(formation(ctx.st, 'reception').map((c) => [c.playerId, c.spot])),
+      play: Object.fromEntries(formation(ctx.st, 'attack').map((c) => [c.playerId, c.spot])),
+    },
     pointTo: ctx.closing.point,
   };
 }
