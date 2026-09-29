@@ -25,11 +25,13 @@ El mismo código funciona en **Google Colab** (ahora) y en el **Mac** (después)
 Abrir: <https://colab.research.google.com/github/carero2/voley-app/blob/claude/volleyball-stats-github-pages-cf7xwk/video/notebooks/prueba_colab.ipynb>
 
 1. **Entorno de ejecución → Cambiar tipo → T4 GPU**.
-2. Sube el vídeo original a Google Drive (p. ej. `Mi unidad/voley/partido.mov`).
+2. El vídeo original puede estar en **OneDrive** (compártelo como «cualquier persona con el vínculo» y pega el
+   enlace; se descarga a Colab) o en **Google Drive**.
 3. Ejecuta las celdas en orden: preparar → vídeo → calibrar (clics) → analizar un tramo → ver resultado →
-   exportar fotogramas para etiquetar → (más adelante) reentrenar.
+   exportar fotogramas para etiquetar → (más adelante) reentrenar → descargar resultados (.zip).
 
-Los resultados (resumen, muestra, vídeo anotado, detecciones) se guardan en tu carpeta de Drive.
+Calibración: se marcan las esquinas y los extremos de la línea central y de las líneas de ataque; cualquier
+punto se puede saltar (p. ej. una esquina fuera de la imagen). Bastan 4 que no estén en línea.
 
 ## Etiquetar puntos
 
@@ -76,3 +78,7 @@ Usa la GPU del chip M automáticamente. Otras órdenes: `info`, `frame`, `detect
 1080p · 50 fps · obturador 1/500 o más rápido (sin «obturación sin parpadeo») · ISO manual · balance de
 blancos y enfoque fijos · estabilización desactivada · **sin grabación proxy** (duplica el trabajo del móvil y
 lo calienta).
+
+Espacio: con H.264 a bitrate alto son unos 12 GB por hora. Con **H.265** y bitrate medio, a 50 fps, se queda
+en una fracción (unos 4-6 GB por hora, según el ajuste); parar la grabación entre sets también ahorra espacio y
+deja enfriar el móvil. Después, pasar el vídeo a OneDrive con wifi y borrarlo del móvil.

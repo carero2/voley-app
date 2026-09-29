@@ -1,0 +1,175 @@
+"""Genera prueba_colab.ipynb (python video/notebooks/generar.py). Editar aquí y volver a generar."""
+
+import json
+from pathlib import Path
+
+cells = []
+
+
+def md(src):
+    cells.append({"cell_type": "markdown", "metadata": {}, "source": src})
+
+
+def code(src):
+    cells.append({"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [], "source": src})
+
+
+md("""# 🏐 Análisis de vídeo de voleibol — pruebas
+
+Este cuaderno usa el mismo código que funcionará después en el MacBook (`video/voley_cv` del repositorio).
+
+**Antes de empezar**
+1. Menú **Entorno de ejecución → Cambiar tipo de entorno de ejecución → T4 GPU**.
+2. Ten el vídeo original (H.264/H.265, no el proxy) en **OneDrive** (compartido con enlace) o en **Google Drive**.
+3. Ejecuta las celdas en orden con ▶. Cada una explica qué hace.
+
+El vídeo se procesa en la máquina de Colab. Los resultados se guardan en la carpeta que elijas y la última
+celda los descarga en un `.zip`.""")
+
+code("""#@title 1. Preparar: GPU y código
+import os, subprocess, sys
+gpu = subprocess.run(['nvidia-smi', '--query-gpu=name,memory.total', '--format=csv,noheader'], capture_output=True, text=True).stdout
+print('GPU:', gpu.strip() or 'NINGUNA → Entorno de ejecución → Cambiar tipo → T4 GPU')
+
+BRANCH = 'claude/volleyball-stats-github-pages-cf7xwk'
+if not os.path.exists('/content/voley-app'):
+    !git clone -q -b {BRANCH} https://github.com/carero2/voley-app.git /content/voley-app
+else:
+    !git -C /content/voley-app pull -q
+%cd /content/voley-app/video
+!pip install -q -r requirements.txt
+sys.path.insert(0, '/content/voley-app/video')
+print('Listo')""")
+
+md("""## Tu vídeo
+- **OneDrive**: en OneDrive, clic derecho sobre el vídeo → **Compartir** → «Cualquier persona con el vínculo
+  puede ver» → **Copiar vínculo** y pégalo en ENLACE_ONEDRIVE. Se descarga a Colab (unos minutos para 3 GB;
+  hay que repetirlo en cada sesión nueva). Cuando acabes puedes dejar de compartirlo.
+- **Google Drive**: pon la ruta en RUTA_DRIVE (se pedirá permiso para montar Drive).
+
+Los resultados van a CARPETA. Con OneDrive se guardan en Colab (se pierden al cerrar la sesión: descárgalos
+con la última celda); con Google Drive, en tu Drive.""")
+
+code("""#@title 2. Tu vídeo
+FUENTE = 'OneDrive'  #@param ["OneDrive", "Google Drive"]
+ENLACE_ONEDRIVE = ''  #@param {type:"string"}
+RUTA_DRIVE = '/content/drive/MyDrive/voley/partido.mov'  #@param {type:"string"}
+VISTA = 'lateral'  #@param ["lateral", "fondo"]
+
+from voley_cv.video_io import video_info
+if FUENTE == 'OneDrive':
+    from voley_cv.remote import download
+    VIDEO = str(download(ENLACE_ONEDRIVE, '/content/partido.mov'))
+    CARPETA = '/content/resultados'
+else:
+    from google.colab import drive
+    drive.mount('/content/drive')
+    VIDEO = RUTA_DRIVE
+    CARPETA = os.path.join(os.path.dirname(RUTA_DRIVE), 'resultados')
+os.makedirs(CARPETA, exist_ok=True)
+info = video_info(VIDEO)
+print(f"{info['width']}x{info['height']} · {info['fps']:.2f} fps · {info['duration'] / 60:.1f} min")
+print('Resultados en', CARPETA)""")
+
+md("""## Calibrar el campo
+Marca con clics puntos del **campo de voley** (en tu pabellón, las **líneas naranjas**), en el orden que va
+pidiendo la imagen: primero las 4 esquinas (1 cerca-izquierda, 2 cerca-derecha, 3 lejos-derecha,
+4 lejos-izquierda) y luego los extremos de la línea central y de las líneas de ataque.
+
+**Cualquier punto se puede saltar** («Saltar este punto»), por ejemplo una esquina que quede fuera de la
+imagen o tapada. Hacen falta al menos 4 puntos; cuantos más marques, mejor. Termina con **Listo**.
+
+Elige un segundo en el que las líneas no estén tapadas por jugadores.""")
+
+code("""#@title 3. Calibrar el campo (clics sobre la imagen)
+SEGUNDO = 30  #@param {type:"number"}
+import cv2
+from google.colab.patches import cv2_imshow
+from voley_cv.video_io import read_frame
+from voley_cv.calibrate_ui import pick_points_colab
+from voley_cv.court import Court
+
+frame = read_frame(VIDEO, SEGUNDO)
+clicked = pick_points_colab(frame, VISTA)
+court = Court.from_points(VISTA, clicked, (frame.shape[1], frame.shape[0]))
+CAMPO = f'{CARPETA}/campo.json'
+court.save(CAMPO)
+preview = court.draw_overlay(frame)
+cv2.imwrite(f'{CARPETA}/campo_comprobacion.jpg', preview)
+print(f'{len(court.image_points)} puntos · error de reproyección: {court.reprojection_error():.1f} px (con más de 4 puntos, menos de ~5 px está bien)')
+print('Las líneas amarillas deben coincidir con las del campo. Si no, repite esta celda.')
+cv2_imshow(cv2.resize(preview, (1280, 720)))""")
+
+md("""## Analizar un tramo
+Detecta jugadores y balón, sigue el balón, busca toques, pasos de red y posesiones, y hace un vídeo anotado.
+
+- **CADA = 2** analiza uno de cada dos fotogramas (el doble de rápido; suficiente para una primera prueba).
+- **MOSAICOS**: el balón es pequeño; la imagen se divide en trozos para verlo mejor. 3x2 es un buen punto de
+  partida; 1x1 = sin mosaicos (más rápido, casi no verá el balón).
+- **ETIQUETAS** (opcional): ruta del `.json` de la herramienta de etiquetar puntos (súbelo con el icono de
+  carpeta de la izquierda) para comparar punto a punto.
+- **PESOS** (más adelante): el modelo reentrenado con tus etiquetas.
+
+En una T4, un minuto de vídeo con CADA = 2 tarda unos minutos.""")
+
+code("""#@title 4. Analizar un tramo
+INICIO = 60  #@param {type:"number"}
+FIN = 120  #@param {type:"number"}
+CADA = 2  #@param {type:"integer"}
+MODELO = 'small'  #@param ["nano", "small", "medium"]
+MOSAICOS = '3x2'  #@param ["1x1", "2x1", "3x2", "4x3"]
+ETIQUETAS = ''  #@param {type:"string"}
+PESOS = ''  #@param {type:"string"}
+
+from voley_cv.pipeline import run_all
+c, r = map(int, MOSAICOS.split('x'))
+result, text, files = run_all(VIDEO, CAMPO, CARPETA, INICIO, FIN, CADA, MODELO, PESOS or None, (c, r), ETIQUETAS or None)
+print(text)""")
+
+code("""#@title 5. Ver el resultado (muestra y vídeo anotado)
+from IPython.display import Image, HTML, display
+from base64 import b64encode
+display(Image(files['muestra'], width=1100))
+if 'video' in files:
+    data = b64encode(open(files['video'], 'rb').read()).decode()
+    display(HTML(f'<video width="1000" controls src="data:video/mp4;base64,{data}"></video>'))""")
+
+md("""## Fotogramas para etiquetar (entrenar el modelo)
+Recorre todo el vídeo (un fotograma cada 2 s), detecta, y guarda **N fotogramas variados con las cajas que ya
+ve el modelo** (mitad repartidos, mitad donde no vio el balón). Crea `para_etiquetar.zip` para subir a
+**Roboflow** y corregir: clases `balon` y `jugador`.""")
+
+code("""#@title 6. Exportar fotogramas para Roboflow
+N = 300  #@param {type:"integer"}
+from voley_cv.pipeline import frames_for_labeling
+n, zip_path = frames_for_labeling(VIDEO, CAMPO, CARPETA, N, 2.0, MODELO)
+print(f'{n} fotogramas → {zip_path}')""")
+
+md("""## (Más adelante) Reentrenar con tus etiquetas
+Cuando tengas los fotogramas corregidos en Roboflow, expórtalos en formato **COCO** (para RF-DETR), súbelos
+a Colab (o a Drive) y ejecuta esta celda. El modelo resultante (`checkpoint_best_total.pth`) se usa en la
+celda 4, campo **PESOS**.""")
+
+code("""#@title 7. Reentrenar
+DATASET = '/content/dataset_coco'  #@param {type:"string"}
+EPOCAS = 40  #@param {type:"integer"}
+from voley_cv.train import train
+train(DATASET, f'{CARPETA}/modelo', MODELO, EPOCAS)""")
+
+code("""#@title 8. Descargar los resultados (.zip)
+import shutil
+from google.colab import files as colab_files
+zip_path = shutil.make_archive('/content/resultados_voley', 'zip', CARPETA)
+print(f'{os.path.getsize(zip_path) / 1e6:.1f} MB')
+colab_files.download(zip_path)""")
+
+nb = {"cells": cells, "metadata": {"accelerator": "GPU", "colab": {"gpuType": "T4", "provenance": []},
+                                   "kernelspec": {"display_name": "Python 3", "name": "python3"},
+                                   "language_info": {"name": "python"}},
+      "nbformat": 4, "nbformat_minor": 0}
+for c in nb["cells"]:
+    lines = c["source"].split("\n")
+    c["source"] = [line + "\n" for line in lines[:-1]] + [lines[-1]]
+out = Path(__file__).with_name("prueba_colab.ipynb")
+out.write_text(json.dumps(nb, ensure_ascii=False, indent=1))
+print(out)

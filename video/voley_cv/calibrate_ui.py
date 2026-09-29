@@ -7,7 +7,7 @@ import json
 
 import cv2
 
-from .court import CORNER_LABELS, EXTRA
+from .court import POINTS
 
 _JS = r"""
 async function voleyPickPoints(dataUrl, W, H, labels) {
@@ -35,7 +35,7 @@ async function voleyPickPoints(dataUrl, W, H, labels) {
       ctx.fillStyle = i < 4 ? '#ff3b30' : '#34c759'; ctx.beginPath(); ctx.arc(p[0] * scale, p[1] * scale, 5, 0, 7); ctx.fill();
       ctx.font = 'bold 16px sans-serif'; ctx.fillText(String(i + 1), p[0] * scale + 7, p[1] * scale - 7); });
     info.textContent = pts.length < labels.length
-      ? `Marca el punto ${pts.length + 1}: ${labels[pts.length]}` + (pts.length >= 4 ? ' (opcional)' : '')
+      ? `Punto ${pts.length + 1} de ${labels.length}: ${labels[pts.length]}. Si no se ve, «Saltar este punto».` + (pts.filter(Boolean).length >= 4 ? ' Ya puedes pulsar «Listo».' : '')
       : 'Todos los puntos marcados. Pulsa «Listo».';
   };
   draw();
@@ -45,20 +45,20 @@ async function voleyPickPoints(dataUrl, W, H, labels) {
     pts.push([(e.clientX - r.left) / scale, (e.clientY - r.top) / scale]); draw();
   };
   undo.onclick = () => { pts.pop(); draw(); };
-  skip.onclick = () => { if (pts.length >= 4 && pts.length < labels.length) { pts.push(null); draw(); } };
+  skip.onclick = () => { if (pts.length < labels.length) { pts.push(null); draw(); } };
   return new Promise(resolve => { done.onclick = () => {
-    if (pts.filter(Boolean).length < 4) { info.textContent = 'Faltan esquinas: marca al menos las 4.'; return; }
+    if (pts.filter(Boolean).length < 4) { info.textContent = 'Faltan puntos: marca al menos 4 (esquinas o extremos de líneas).'; return; }
     box.remove(); resolve(JSON.stringify(pts)); }; });
 }
 """
 
 
 def labels_for(view):
-    return CORNER_LABELS + [f"{name.replace('_', ' ')} (extremo de la línea central, bajo la red)" for name in EXTRA[view]]
+    return [label for _, label, _ in POINTS[view]]
 
 
 def pick_points_colab(frame, view):
-    """Muestra el fotograma en Colab y devuelve (esquinas, extras) marcados con clics."""
+    """Muestra el fotograma en Colab y devuelve los puntos marcados con clics (orden de POINTS[view])."""
     from google.colab import output  # type: ignore
     from IPython.display import Javascript, display
 
@@ -95,7 +95,7 @@ def pick_points_opencv(frame, view):
         key = cv2.waitKey(30) & 0xFF
         if key == ord("z") and pts:
             pts.pop()
-        elif key == ord("s") and 4 <= len(pts) < len(labels):
+        elif key == ord("s") and len(pts) < len(labels):
             pts.append(None)
         elif key in (13, 10) and len([p for p in pts if p]) >= 4:
             break
@@ -104,6 +104,6 @@ def pick_points_opencv(frame, view):
 
 
 def _split(pts, view):
-    corners = pts[:4]
-    extra = {name: (pts[4 + i] if len(pts) > 4 + i else None) for i, name in enumerate(EXTRA[view])}
-    return corners, extra
+    """Devuelve la lista de puntos en el orden de POINTS[view] (None = saltado)."""
+    n = len(POINTS[view])
+    return list(pts[:n]) + [None] * (n - len(pts))

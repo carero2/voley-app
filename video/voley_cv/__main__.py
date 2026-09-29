@@ -14,6 +14,10 @@ def _pt(s):
     return [float(u), float(v)]
 
 
+def _pt_or_none(s):
+    return None if s.strip() == "-" else _pt(s)
+
+
 def _tiles(s):
     c, r = s.lower().split("x")
     return int(c), int(r)
@@ -35,7 +39,7 @@ def main(argv=None):
     p.add_argument("video")
     p.add_argument("--t", type=float, default=10.0)
     p.add_argument("--view", choices=["lateral", "fondo"], default="lateral")
-    p.add_argument("--corners", nargs=4, type=_pt, metavar="U,V", help="4 esquinas en orden (sin esto se abre una ventana)")
+    p.add_argument("--corners", nargs=4, type=_pt_or_none, metavar="U,V", help="4 esquinas en orden; «-» si una queda fuera (sin esto se abre una ventana)")
     p.add_argument("--centro", nargs=2, type=_pt, metavar="U,V", help="extremos de la línea central (opcional)")
     p.add_argument("--out", default="campo.json")
     p.add_argument("--preview", default="campo_comprobacion.jpg")
@@ -108,7 +112,8 @@ def main(argv=None):
             extra = dict(zip(EXTRA[a.view], a.centro)) if a.centro else {}
         else:
             from .calibrate_ui import pick_points_opencv
-            corners, extra = pick_points_opencv(frame, a.view)
+            clicked = pick_points_opencv(frame, a.view)
+            corners, extra = clicked[:4], dict(zip(EXTRA[a.view], clicked[4:]))
         court = Court.from_clicks(a.view, corners, (frame.shape[1], frame.shape[0]), extra)
         court.save(a.out)
         cv2.imwrite(a.preview, court.draw_overlay(frame))

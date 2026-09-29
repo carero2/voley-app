@@ -22,22 +22,40 @@ WIDTH = 9.0
 NET_X = 9.0
 ATTACK = 3.0  # distancia de la línea de ataque a la red
 
-# Coordenadas de campo de las 4 esquinas en el orden de marcado, según dónde esté la cámara.
-CORNERS = {
+# Puntos que se pueden marcar, en orden: primero las 4 esquinas y luego puntos opcionales.
+# Cualquiera se puede saltar (p. ej. una esquina que queda fuera de la imagen): bastan 4 puntos que no
+# estén en línea. Cuantos más, mejor se compensa la distorsión del gran angular.
+POINTS = {
     # Cámara en un lateral (grada), centrada en la red: el campo se ve de izquierda a derecha.
-    "lateral": [(0.0, 0.0), (18.0, 0.0), (18.0, 9.0), (0.0, 9.0)],
+    "lateral": [
+        ("esquina_1", "1 esquina cerca-izquierda", (0.0, 0.0)),
+        ("esquina_2", "2 esquina cerca-derecha", (18.0, 0.0)),
+        ("esquina_3", "3 esquina lejos-derecha", (18.0, 9.0)),
+        ("esquina_4", "4 esquina lejos-izquierda", (0.0, 9.0)),
+        ("centro_cerca", "línea central (bajo la red), extremo cercano", (9.0, 0.0)),
+        ("centro_lejos", "línea central (bajo la red), extremo lejano", (9.0, 9.0)),
+        ("ataque_izq_cerca", "línea de ataque izquierda, extremo cercano", (6.0, 0.0)),
+        ("ataque_izq_lejos", "línea de ataque izquierda, extremo lejano", (6.0, 9.0)),
+        ("ataque_der_cerca", "línea de ataque derecha, extremo cercano", (12.0, 0.0)),
+        ("ataque_der_lejos", "línea de ataque derecha, extremo lejano", (12.0, 9.0)),
+    ],
     # Cámara detrás de una línea de fondo: el campo se aleja de la cámara.
-    "fondo": [(0.0, 9.0), (0.0, 0.0), (18.0, 0.0), (18.0, 9.0)],
+    "fondo": [
+        ("esquina_1", "1 esquina cerca-izquierda", (0.0, 9.0)),
+        ("esquina_2", "2 esquina cerca-derecha", (0.0, 0.0)),
+        ("esquina_3", "3 esquina lejos-derecha", (18.0, 0.0)),
+        ("esquina_4", "4 esquina lejos-izquierda", (18.0, 9.0)),
+        ("centro_izquierda", "línea central (bajo la red), extremo izquierdo", (9.0, 9.0)),
+        ("centro_derecha", "línea central (bajo la red), extremo derecho", (9.0, 0.0)),
+        ("ataque_cerca_izquierda", "línea de ataque cercana, extremo izquierdo", (6.0, 9.0)),
+        ("ataque_cerca_derecha", "línea de ataque cercana, extremo derecho", (6.0, 0.0)),
+        ("ataque_lejos_izquierda", "línea de ataque lejana, extremo izquierdo", (12.0, 9.0)),
+        ("ataque_lejos_derecha", "línea de ataque lejana, extremo derecho", (12.0, 0.0)),
+    ],
 }
-
-# Puntos opcionales que mejoran la calibración: los extremos de la línea central (bajo la red),
-# en el orden cerca/izquierda → lejos/derecha según la vista.
-EXTRA = {
-    "lateral": {"centro_cerca": (9.0, 0.0), "centro_lejos": (9.0, 9.0)},
-    "fondo": {"centro_izquierda": (9.0, 9.0), "centro_derecha": (9.0, 0.0)},
-}
-
-CORNER_LABELS = ["1 cerca-izquierda", "2 cerca-derecha", "3 lejos-derecha", "4 lejos-izquierda"]
+CORNERS = {view: [p[2] for p in pts[:4]] for view, pts in POINTS.items()}
+EXTRA = {view: {p[0]: p[2] for p in pts[4:]} for view, pts in POINTS.items()}
+CORNER_LABELS = [p[1] for p in POINTS["lateral"][:4]]
 
 
 def zone_of(x: float, y: float, margin: float = 0.0):
@@ -79,21 +97,30 @@ class Court:
     # ---------- Construcción y guardado ----------
 
     @classmethod
-    def from_clicks(cls, view: str, corners, image_size, extra: dict | None = None):
-        if view not in CORNERS:
+    def from_points(cls, view: str, clicked, image_size):
+        """`clicked`: lista en el orden de POINTS[view] con [u, v] o None (punto saltado)."""
+        if view not in POINTS:
             raise ValueError(f"Vista desconocida: {view} (usa 'lateral' o 'fondo').")
-        if len(corners) != 4:
-            raise ValueError("Marca exactamente las 4 esquinas.")
-        img = [list(map(float, p)) for p in corners]
-        court = [list(p) for p in CORNERS[view]]
-        for name, pt in (extra or {}).items():
-            if pt is None:
-                continue
-            if name not in EXTRA[view]:
-                raise ValueError(f"Punto extra desconocido: {name}")
-            img.append(list(map(float, pt)))
-            court.append(list(EXTRA[view][name]))
+        img, court = [], []
+        for (name, _, xy), pt in zip(POINTS[view], clicked):
+            if pt is not None:
+                img.append([float(pt[0]), float(pt[1])])
+                court.append(list(xy))
+        if len(img) < 4:
+            raise ValueError("Hacen falta al menos 4 puntos del campo (esquinas o extremos de líneas).")
         return cls(view, img, court, tuple(image_size))
+
+    @classmethod
+    def from_clicks(cls, view: str, corners, image_size, extra: dict | None = None):
+        """4 esquinas (alguna puede ser None si queda fuera de la imagen) y puntos extra por nombre."""
+        if view not in POINTS:
+            raise ValueError(f"Vista desconocida: {view} (usa 'lateral' o 'fondo').")
+        extra = extra or {}
+        unknown = set(extra) - set(EXTRA[view])
+        if unknown:
+            raise ValueError(f"Puntos extra desconocidos: {', '.join(sorted(unknown))}")
+        clicked = list(corners) + [extra.get(name) for name in EXTRA[view]]
+        return cls.from_points(view, clicked, image_size)
 
     def to_json(self) -> dict:
         return {"view": self.view, "image_points": self.image_points, "court_points": self.court_points,
