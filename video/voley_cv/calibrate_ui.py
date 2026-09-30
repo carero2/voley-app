@@ -10,42 +10,77 @@ import cv2
 from .court import POINTS
 
 _JS = r"""
-async function voleyPickPoints(dataUrl, W, H, labels) {
-  const scale = Math.min(1, 1100 / W);
+async function voleyPickPoints(dataUrl, W, H, labels, schema) {
+  const scale = Math.min(1, 1000 / W);
+  const n = labels.length;
+  const pts = new Array(n).fill(null);
+  let cur = 0;
   const box = document.createElement('div');
-  box.style.cssText = 'font:14px sans-serif;color:#eee;background:#222;padding:8px;border-radius:8px;display:inline-block';
-  const info = document.createElement('div');
+  box.style.cssText = 'font:14px sans-serif;color:#eee;background:#222;padding:10px;border-radius:8px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start';
+  const left = document.createElement('div');
+  const info = document.createElement('div'); info.style.cssText = 'font-size:16px;font-weight:bold;margin-bottom:6px;min-height:40px;max-width:1000px';
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(W * scale); canvas.height = Math.round(H * scale);
   canvas.style.cursor = 'crosshair';
   const bar = document.createElement('div');
-  const undo = document.createElement('button'); undo.textContent = 'Deshacer';
-  const skip = document.createElement('button'); skip.textContent = 'Saltar este punto';
-  const done = document.createElement('button'); done.textContent = 'Listo';
-  [undo, skip, done].forEach(b => { b.style.margin = '6px 6px 0 0'; b.style.padding = '6px 12px'; bar.appendChild(b); });
-  box.append(info, canvas, bar);
+  const mk = (t) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = 'margin:6px 6px 0 0;padding:8px 14px;font-size:14px'; bar.appendChild(b); return b; };
+  const skip = mk('No se ve: siguiente punto'), clear = mk('Borrar este punto'), done = mk('Listo');
+  left.append(info, canvas, bar);
+  // Esquema del campo con los números de los puntos (vista desde la cámara).
+  const right = document.createElement('div');
+  const sch = document.createElement('canvas'); sch.width = 300; sch.height = 170;
+  const list = document.createElement('div'); list.style.cssText = 'margin-top:8px;display:flex;flex-direction:column;gap:3px';
+  right.append(sch, list);
+  box.append(left, right);
   document.body.appendChild(box);
   const img = new Image(); img.src = dataUrl; await img.decode();
-  if (window.google?.colab?.output?.setIframeHeight) google.colab.output.setIframeHeight(document.documentElement.scrollHeight, true);
   const ctx = canvas.getContext('2d');
-  const pts = [];
+  const sctx = sch.getContext('2d');
+  const drawSchema = () => {
+    sctx.fillStyle = '#333'; sctx.fillRect(0, 0, 300, 170);
+    const X = (u) => 20 + u * 260, Y = (v) => 15 + v * 140;
+    sctx.strokeStyle = '#f59e0b'; sctx.lineWidth = 2;
+    sctx.strokeRect(X(0), Y(0), 260, 140);
+    const lines = schema.lines;
+    lines.forEach(([a, b]) => { sctx.beginPath(); sctx.moveTo(X(a[0]), Y(a[1])); sctx.lineTo(X(b[0]), Y(b[1])); sctx.stroke(); });
+    schema.points.forEach(([u, v], i) => {
+      sctx.fillStyle = i === cur ? '#facc15' : pts[i] ? '#34c759' : '#9ca3af';
+      sctx.beginPath(); sctx.arc(X(u), Y(v), i === cur ? 8 : 6, 0, 7); sctx.fill();
+      sctx.fillStyle = '#000'; sctx.font = 'bold 10px sans-serif'; sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+      sctx.fillText(String(i + 1), X(u), Y(v));
+    });
+    sctx.fillStyle = '#ccc'; sctx.font = '11px sans-serif'; sctx.textAlign = 'center'; sctx.fillText('cámara aquí ↓', 150, 165);
+  };
   const draw = () => {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     pts.forEach((p, i) => { if (!p) return;
-      ctx.fillStyle = i < 4 ? '#ff3b30' : '#34c759'; ctx.beginPath(); ctx.arc(p[0] * scale, p[1] * scale, 5, 0, 7); ctx.fill();
-      ctx.font = 'bold 16px sans-serif'; ctx.fillText(String(i + 1), p[0] * scale + 7, p[1] * scale - 7); });
-    info.textContent = pts.length < labels.length
-      ? `Punto ${pts.length + 1} de ${labels.length}: ${labels[pts.length]}. Si no se ve, «Saltar este punto».` + (pts.filter(Boolean).length >= 4 ? ' Ya puedes pulsar «Listo».' : '')
-      : 'Todos los puntos marcados. Pulsa «Listo».';
+      ctx.fillStyle = i === cur ? '#facc15' : '#34c759'; ctx.beginPath(); ctx.arc(p[0] * scale, p[1] * scale, 6, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.fillText(String(i + 1), p[0] * scale + 8, p[1] * scale - 8); });
+    const marked = pts.filter(Boolean).length;
+    info.textContent = cur < n
+      ? `Haz clic en el punto ${cur + 1}: ${labels[cur]}. Si no se ve, «No se ve: siguiente punto». (${marked} marcados${marked >= 4 ? ' · ya puedes pulsar «Listo»' : ', mínimo 4'})`
+      : `${marked} puntos marcados. Pulsa «Listo» (o elige un punto de la lista para cambiarlo).`;
+    list.innerHTML = '';
+    labels.forEach((l, i) => {
+      const it = document.createElement('div');
+      it.textContent = `${i + 1}. ${l} — ${pts[i] ? 'marcado' : 'sin marcar'}`;
+      it.style.cssText = `cursor:pointer;padding:2px 6px;border-radius:4px;${i === cur ? 'background:#854d0e' : ''};color:${pts[i] ? '#86efac' : '#ddd'}`;
+      it.onclick = () => { cur = i; draw(); };
+      list.appendChild(it);
+    });
+    drawSchema();
+    if (window.google?.colab?.output?.setIframeHeight) google.colab.output.setIframeHeight(document.documentElement.scrollHeight, true);
   };
+  const next = () => { let k = cur + 1; while (k < n && pts[k]) k++; cur = k; };
   draw();
   canvas.onclick = (e) => {
-    if (pts.length >= labels.length) return;
+    if (cur >= n) return;
     const r = canvas.getBoundingClientRect();
-    pts.push([(e.clientX - r.left) / scale, (e.clientY - r.top) / scale]); draw();
+    pts[cur] = [(e.clientX - r.left) / scale, (e.clientY - r.top) / scale];
+    next(); draw();
   };
-  undo.onclick = () => { pts.pop(); draw(); };
-  skip.onclick = () => { if (pts.length < labels.length) { pts.push(null); draw(); } };
+  skip.onclick = () => { if (cur < n) { cur += 1; draw(); } };
+  clear.onclick = () => { if (cur < n) { pts[cur] = null; draw(); } };
   return new Promise(resolve => { done.onclick = () => {
     if (pts.filter(Boolean).length < 4) { info.textContent = 'Faltan puntos: marca al menos 4 (esquinas o extremos de líneas).'; return; }
     box.remove(); resolve(JSON.stringify(pts)); }; });
@@ -55,6 +90,21 @@ async function voleyPickPoints(dataUrl, W, H, labels) {
 
 def labels_for(view):
     return [label for _, label, _ in POINTS[view]]
+
+
+def _to_schema(view, x, y):
+    """Coordenadas del campo → esquema visto desde la cámara (0-1, la cámara abajo)."""
+    if view == "lateral":
+        return [x / 18.0, 1 - y / 9.0]
+    return [(9.0 - y) / 9.0, 1 - x / 18.0]
+
+
+def schema_for(view):
+    lines = [((9, 0), (9, 9)), ((6, 0), (6, 9)), ((12, 0), (12, 9))]
+    return {
+        "points": [_to_schema(view, *xy) for _, _, xy in POINTS[view]],
+        "lines": [[_to_schema(view, *a), _to_schema(view, *b)] for a, b in lines],
+    }
 
 
 def pick_points_colab(frame, view):
@@ -67,7 +117,8 @@ def pick_points_colab(frame, view):
     H, W = frame.shape[:2]
     labels = labels_for(view)
     display(Javascript(_JS))
-    pts = json.loads(output.eval_js(f"voleyPickPoints({json.dumps(data_url)}, {W}, {H}, {json.dumps(labels)})"))
+    call = f"voleyPickPoints({json.dumps(data_url)}, {W}, {H}, {json.dumps(labels)}, {json.dumps(schema_for(view))})"
+    pts = json.loads(output.eval_js(call))
     return _split(pts, view)
 
 

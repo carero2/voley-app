@@ -75,12 +75,14 @@ print(f"{info['width']}x{info['height']} · {info['fps']:.2f} fps · {info['dura
 print('Resultados en', CARPETA)""")
 
 md("""## Calibrar el campo
-Marca con clics puntos del **campo de voley** (en tu pabellón, las **líneas naranjas**), en el orden que va
-pidiendo la imagen: primero las 4 esquinas (1 cerca-izquierda, 2 cerca-derecha, 3 lejos-derecha,
-4 lejos-izquierda) y luego los extremos de la línea central y de las líneas de ataque.
+Marca con clics puntos del **campo de voley** (en tu pabellón, las **líneas naranjas**). La imagen va pidiendo
+los puntos uno a uno y el **esquema de la derecha** muestra en amarillo dónde está el punto que toca:
+las 4 esquinas y luego los extremos de la línea central (bajo la red) y de las dos líneas de 3 metros.
 
-**Cualquier punto se puede saltar** («Saltar este punto»), por ejemplo una esquina que quede fuera de la
-imagen o tapada. Hacen falta al menos 4 puntos; cuantos más marques, mejor. Termina con **Listo**.
+- **Si el punto que pide no se ve** (fuera de la imagen o tapado), pulsa **«No se ve: siguiente punto»**.
+  No hagas clic en otro sitio: cada clic se guarda como el punto que se está pidiendo.
+- Para corregir uno, elígelo en la lista y vuelve a hacer clic (o «Borrar este punto»).
+- Hacen falta al menos 4 puntos; cuantos más, mejor. Termina con **Listo**.
 
 Elige un segundo en el que las líneas no estén tapadas por jugadores.""")
 

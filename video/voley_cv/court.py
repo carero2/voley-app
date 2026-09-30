@@ -28,10 +28,10 @@ ATTACK = 3.0  # distancia de la línea de ataque a la red
 POINTS = {
     # Cámara en un lateral (grada), centrada en la red: el campo se ve de izquierda a derecha.
     "lateral": [
-        ("esquina_1", "1 esquina cerca-izquierda", (0.0, 0.0)),
-        ("esquina_2", "2 esquina cerca-derecha", (18.0, 0.0)),
-        ("esquina_3", "3 esquina lejos-derecha", (18.0, 9.0)),
-        ("esquina_4", "4 esquina lejos-izquierda", (0.0, 9.0)),
+        ("esquina_1", "esquina cerca-izquierda", (0.0, 0.0)),
+        ("esquina_2", "esquina cerca-derecha", (18.0, 0.0)),
+        ("esquina_3", "esquina lejos-derecha", (18.0, 9.0)),
+        ("esquina_4", "esquina lejos-izquierda", (0.0, 9.0)),
         ("centro_cerca", "línea central (bajo la red), extremo cercano", (9.0, 0.0)),
         ("centro_lejos", "línea central (bajo la red), extremo lejano", (9.0, 9.0)),
         ("ataque_izq_cerca", "línea de ataque izquierda, extremo cercano", (6.0, 0.0)),
@@ -41,10 +41,10 @@ POINTS = {
     ],
     # Cámara detrás de una línea de fondo: el campo se aleja de la cámara.
     "fondo": [
-        ("esquina_1", "1 esquina cerca-izquierda", (0.0, 9.0)),
-        ("esquina_2", "2 esquina cerca-derecha", (0.0, 0.0)),
-        ("esquina_3", "3 esquina lejos-derecha", (18.0, 0.0)),
-        ("esquina_4", "4 esquina lejos-izquierda", (18.0, 9.0)),
+        ("esquina_1", "esquina cerca-izquierda", (0.0, 9.0)),
+        ("esquina_2", "esquina cerca-derecha", (0.0, 0.0)),
+        ("esquina_3", "esquina lejos-derecha", (18.0, 0.0)),
+        ("esquina_4", "esquina lejos-izquierda", (18.0, 9.0)),
         ("centro_izquierda", "línea central (bajo la red), extremo izquierdo", (9.0, 9.0)),
         ("centro_derecha", "línea central (bajo la red), extremo derecho", (9.0, 0.0)),
         ("ataque_cerca_izquierda", "línea de ataque cercana, extremo izquierdo", (6.0, 9.0)),
