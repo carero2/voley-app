@@ -1,13 +1,15 @@
 import { getData, sortedMatches, playerById, setsSummary } from '../store.js';
-import { POSITIONS, POINT_REASONS, positionById, TOUCH_LABEL, skillById, activeResults } from '../actions.js';
+import { POSITIONS, POINT_REASONS, positionById, TOUCH_LABEL, skillById, activeResults, reasonLabel } from '../actions.js';
 import {
   filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, freeStats, pointReasons, pct,
+  serveReceive, scoreProgress,
 } from '../stats.js';
 import { activePlayers, rivalPlayerById } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
 import { help } from '../help.js';
 
 const TABS = [
+  { id: 'resumen', label: 'Resumen' },
   { id: 'jugadores', label: 'Jugadores' },
   { id: 'posiciones', label: 'Posición' },
   { id: 'rotaciones', label: 'Rotación' },
@@ -17,11 +19,11 @@ const TABS = [
   { id: 'partidos', label: 'Partidos' },
 ];
 
-let state = { tab: 'jugadores', matchId: '', set: '', player: '' };
+let state = { tab: 'resumen', matchId: '', set: '', player: '' };
 
 export function renderStats(el, { query }) {
   if (query.m !== undefined) {
-    state = { ...state, matchId: query.m, set: '' };
+    state = { ...state, matchId: query.m, set: query.s ?? '', tab: query.s ? 'resumen' : state.tab };
     history.replaceState(null, '', '#/estadisticas');
   }
   const matches = sortedMatches();
@@ -36,7 +38,10 @@ export function renderStats(el, { query }) {
   });
 
   el.innerHTML = html`
-    <header class="page-head"><h1>Estadísticas</h1></header>
+    <header class="page-head ${selected && selected.status !== 'finished' ? 'with-back' : ''}">
+      ${selected && selected.status !== 'finished' ? html`<a class="back" href="#/partido/${selected.id}" aria-label="Volver al partido">‹</a>` : ''}
+      <h1>Estadísticas</h1>
+    </header>
 
     <div class="filters">
       <select id="f-match" aria-label="Partido">
@@ -57,6 +62,7 @@ export function renderStats(el, { query }) {
     <div id="tab-body">
       ${events.length === 0
         ? html`<p class="center muted">No hay acciones registradas todavía.</p>`
+        : state.tab === 'resumen' ? summaryTab(events, selected)
         : state.tab === 'jugadores' ? playersTab(events)
         : state.tab === 'posiciones' ? positionsTab(events)
         : state.tab === 'rotaciones' ? rotationsTab(events)
@@ -89,6 +95,127 @@ export function renderStats(el, { query }) {
   );
 }
 
+// ---------- Pestaña Resumen (gráficos) ----------
+
+function summaryTab(events, match) {
+  const rival = match?.opponent ?? 'Rival';
+  const ours = getData().team.name;
+  const reasons = pointReasons(events);
+  const sr = serveReceive(events);
+  const rot = rotationStats(events);
+  const progress = scoreProgress(events);
+  const legend = html`
+    <div class="viz-legend">
+      <span><i class="sw sw-us"></i>${ours}</span>
+      <span><i class="sw sw-them"></i>${rival}</span>
+    </div>`;
+  const REASON_ROWS = [
+    ['ace', 'Ace'], ['ataque', 'Ataque'], ['bloqueo', 'Bloqueo'],
+    ['error_saque', 'Error de saque del contrario'], ['error_ataque', 'Error de ataque del contrario'],
+    ['error_recepcion', 'Error de recepción/defensa del contrario'], ['error_otro', 'Otro error del contrario'],
+  ];
+  const reasonRows = REASON_ROWS
+    .map(([id, label]) => ({ id, label, us: reasons.us[id] || 0, them: reasons.them[id] || 0 }))
+    .filter((r) => r.id !== 'error_otro' || r.us || r.them); // «Otro error» solo existe en partidos antiguos
+  const soBr = [
+    { label: 'Side-out', us: sr.us.sideOut, them: sr.them.sideOut,
+      tipUs: `${sr.us.so} de ${sr.us.recv} recibiendo`, tipThem: `${sr.them.so} de ${sr.them.recv} recibiendo` },
+    { label: 'Break', us: sr.us.break, them: sr.them.break,
+      tipUs: `${sr.us.br} de ${sr.us.serve} sacando`, tipThem: `${sr.them.br} de ${sr.them.serve} sacando` },
+  ];
+  const rotRows = rot.filter((r) => r.recv + r.serve > 0);
+  return html`
+    ${reasons.total ? html`
+      <section class="card">
+        <h2>Cómo se ganan los puntos</h2>
+        ${legend}
+        ${pairBars(reasonRows.map((r) => ({ label: r.label, us: r.us, them: r.them, text: (v) => String(v) })))}
+        ${reasons.extra ? html`<p class="muted small">${reasons.extra} punto${reasons.extra === 1 ? '' : 's'} «+1» sin motivo (no cuentan aquí).</p>` : ''}
+      </section>
+      ${reasonsCard(events)}` : ''}
+
+    <section class="card">
+      <h2>Side-out y break${help('sideOut')}</h2>
+      ${legend}
+      ${pairBars(soBr.map((r) => ({ label: r.label, us: r.us ?? 0, them: r.them ?? 0, max: 1,
+        text: (v) => pct(v), tipUs: r.tipUs, tipThem: r.tipThem, empty: r.us === null })))}
+      <p class="muted small legend">Side-out: puntos ganados recibiendo. Break: puntos ganados sacando. El del rival sale de los mismos puntos.</p>
+    </section>
+
+    ${rotRows.length ? html`
+      <section class="card">
+        <h2>Side-out por rotación${help('sideOut')}</h2>
+        ${barChart(rotRows.map((r) => ({ label: `R${r.rot}`, value: r.recv ? Math.round((100 * r.sideOut) / r.recv) : 0, suffix: '%',
+          detail: `${r.sideOut} de ${r.recv} puntos recibiendo` })), 100)}
+      </section>
+      <section class="card">
+        <h2>Break por rotación${help('breakPt')}</h2>
+        ${barChart(rotRows.map((r) => ({ label: `R${r.rot}`, value: r.serve ? Math.round((100 * r.breaks) / r.serve) : 0, suffix: '%',
+          detail: `${r.breaks} de ${r.serve} puntos sacando` })), 100)}
+      </section>` : ''}
+
+    ${progress.length ? html`
+      <section class="card">
+        <h2>Evolución del marcador</h2>
+        <p class="muted small">Diferencia de puntos a lo largo de cada set: por encima de la línea vamos ganando.</p>
+        ${progress.map((p) => scoreLine(p, rival, progress.length > 1))}
+      </section>` : ''}
+  `;
+}
+
+// Barras emparejadas: nuestro equipo (serie 1) y el rival (serie 2) en cada fila, con el valor escrito.
+function pairBars(rows) {
+  const max = Math.max(1e-9, ...rows.map((r) => r.max ?? Math.max(r.us, r.them)));
+  const bar = (who, v, r, tip) => html`
+    <div class="pair-bar" tabindex="0">
+      <span class="bar-track"><span class="bar-fill fill-${who}" style="width:${(v / max) * 100}%"></span></span>
+      <span class="bar-value">${r.empty ? '—' : r.text(v)}</span>
+      ${tip ? html`<span class="bar-tip">${tip}</span>` : ''}
+    </div>`;
+  return html`
+    <div class="pairs" role="table">
+      ${rows.map((r) => html`
+        <div class="pair-row" role="row">
+          <span class="pair-label" role="cell">${r.label}</span>
+          ${bar('us', r.us, r, r.tipUs)}
+          ${bar('them', r.them, r, r.tipThem)}
+        </div>`)}
+    </div>`;
+}
+
+// Línea de la diferencia del marcador en un set (SVG, sin librerías).
+function scoreLine(p, rival, showSet) {
+  const W = 320;
+  const H = 120;
+  const pad = { l: 26, r: 48, t: 10, b: 16 };
+  const diffs = [0, ...p.points.map((x) => x.us - x.them)];
+  const lim = Math.max(3, ...diffs.map(Math.abs));
+  const x = (i) => pad.l + (i / Math.max(1, diffs.length - 1)) * (W - pad.l - pad.r);
+  const y = (d) => pad.t + ((lim - d) / (2 * lim)) * (H - pad.t - pad.b);
+  // Escalones: el marcador cambia punto a punto.
+  let d = `M${x(0)},${y(0)}`;
+  diffs.slice(1).forEach((v, i) => { d += ` H${x(i + 1)} V${y(v)}`; });
+  const last = p.points.at(-1);
+  const step = (W - pad.l - pad.r) / Math.max(1, diffs.length - 1);
+  return html`
+    <figure class="score-line">
+      ${showSet ? html`<figcaption class="small"><b>Set ${p.set}</b> · ${last.us}-${last.them}</figcaption>` : ''}
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución del set ${p.set}: termina ${last.us}-${last.them}">
+        <line class="axis" x1="${pad.l}" x2="${W - pad.r}" y1="${y(0)}" y2="${y(0)}"></line>
+        <text class="tick" x="${pad.l - 4}" y="${y(lim) + 4}" text-anchor="end">+${lim}</text>
+        <text class="tick" x="${pad.l - 4}" y="${y(0) + 4}" text-anchor="end">0</text>
+        <text class="tick" x="${pad.l - 4}" y="${y(-lim) + 4}" text-anchor="end">−${lim}</text>
+        <path class="line" d="${d}"></path>
+        <circle class="end" cx="${x(diffs.length - 1)}" cy="${y(diffs.at(-1))}" r="4"></circle>
+        <text class="end-label" x="${x(diffs.length - 1) + 6}" y="${y(diffs.at(-1)) + 4}">${last.us}-${last.them}</text>
+        ${p.points.map((pt, i) => html`
+          <rect class="hit" x="${x(i + 1) - step / 2}" y="0" width="${Math.max(step, 4)}" height="${H}">
+            <title>Punto ${i + 1}: ${pt.us}-${pt.them} · ${pt.winner === 'us' ? 'nuestro' : rival}${pt.how ? ` (${reasonLabel(pt.winner, pt.how)})` : ''}</title>
+          </rect>`)}
+      </svg>
+    </figure>`;
+}
+
 // ---------- Pestaña Jugadores ----------
 
 function playersTab(events) {
@@ -103,7 +230,6 @@ function playersTab(events) {
       ${kpi('Puntos ganados', team.won, `${team.ownPoints} propios · ${team.rivalErrors} errores rival`, 'ganados')}
       ${kpi('Puntos cedidos', team.lost, `${team.ownErrors} errores propios · ${team.rivalPoints} del rival`, 'perdidos')}
     </section>
-    ${reasonsCard(events)}
 
     <section class="card">
       <h2>Puntos por jugador</h2>
@@ -126,12 +252,14 @@ function playersTab(events) {
 function reasonsCard(events) {
   const r = pointReasons(events);
   if (!r.total) return '';
-  const rows = POINT_REASONS.map((x) => ({ ...x, fav: r.us[x.id] || 0, con: r.them[x.id] || 0 }));
+  const rows = POINT_REASONS.filter((x) => !x.noStats)
+    .map((x) => ({ ...x, fav: r.us[x.id] || 0, con: r.them[x.id] || 0 }))
+    .filter((x) => !x.legacy || x.fav || x.con);
   const favTotal = rows.reduce((a, x) => a + x.fav, 0);
   const conTotal = rows.reduce((a, x) => a + x.con, 0);
   return html`
-    <section class="card">
-      <h2>Cómo se ganan y se pierden los puntos</h2>
+    <details class="card">
+      <summary><b>Tabla de puntos a favor y en contra</b></summary>
       <p class="small muted">A favor: puntos nuestros (ace, ataque o bloqueo propios, o error del rival). En contra: puntos del rival (sus aces, ataques o bloqueos, o errores nuestros).</p>
       <table class="stats-table">
         <thead><tr><th></th><th>A favor</th><th>En contra</th></tr></thead>
@@ -145,7 +273,7 @@ function reasonsCard(events) {
           <tr><td><b>Total</b></td><td><b>${favTotal}</b></td><td><b>${conTotal}</b></td></tr>
         </tbody>
       </table>
-    </section>`;
+    </details>`;
 }
 
 function detailText(m) {

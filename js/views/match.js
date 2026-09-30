@@ -2,10 +2,11 @@ import {
   getData, activePlayers, playerById, matchById, createMatch, addEvent, undoLastEvent,
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
   setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
-  setMatchMode, setVoice, voiceKeyOf,
+  setMatchMode, setVoice, voiceKeyOf, setIgnoreRot,
 } from '../store.js';
 import {
   SKILLS, TEAM_EVENTS, POINT_REASONS, skillById, positionById, describeEvent, activeResults, reasonLabel, reasonCause,
+  reasonAvailable,
 } from '../actions.js';
 import {
   SYSTEMS, buildSetup, setState, courtLayout, rotationOf, currentPhase, suggestedSetter, PHASES,
@@ -200,12 +201,24 @@ function renderLineup(el, match, rerender) {
 
   const option = (p, current) =>
     html`<option value="${p.id}" ${p.id === current ? 'selected' : ''}>${p.number} · ${p.name} (${positionById(p.position)?.short ?? ''})</option>`;
+  // Set recién terminado: resumen y acceso a sus estadísticas antes de la nueva alineación.
+  const prevSet = match.currentSet - 1;
+  const prevScore = prevSet >= 1 && !hasEvents && !ui.editLineup ? setScore(match, prevSet) : null;
 
   el.innerHTML = html`
     <header class="page-head with-back">
       <a class="back" href="#/" aria-label="Volver">‹</a>
       <h1>Set ${match.currentSet} · Alineación</h1>
     </header>
+
+    ${prevScore ? html`
+      <section class="card set-done">
+        <h2>Set ${prevSet} terminado: ${prevScore.us}-${prevScore.them}</h2>
+        <div class="shortcuts">
+          <a class="btn btn-primary" href="#/estadisticas?m=${match.id}&s=${prevSet}">Estadísticas del set ${prevSet}</a>
+          <a class="btn" href="#/estadisticas?m=${match.id}">Del partido</a>
+        </div>
+      </section>` : ''}
 
     <section class="card stack">
       <fieldset class="field">
@@ -855,9 +868,10 @@ function renderSimpleLive(el, match, st, rerender) {
     })
     .slice(-8)
     .reverse();
-  const column = (team) => POINT_REASONS.map((r) => html`
-    <button class="btn ${team === 'us' ? 'tone-good' : 'tone-error'}" data-point="${team}" data-how="${r.id}">
-      ${reasonLabel(team, r.id)}${r.hint ? html`<span class="small muted"> (${r.hint})</span>` : ''}
+  // Solo los motivos posibles: ace del equipo que saca, error de saque del que saca.
+  const column = (team) => POINT_REASONS.filter((r) => reasonAvailable(team, r.id, st.serving)).map((r) => html`
+    <button class="btn ${team === 'us' ? 'tone-good' : 'tone-error'} ${r.noStats ? 'btn-extra' : ''}" data-point="${team}" data-how="${r.id}">
+      ${reasonLabel(team, r.id)}${r.hint ? html`<span class="small muted">${r.hint}</span>` : ''}
     </button>`);
 
   el.innerHTML = html`
@@ -890,9 +904,18 @@ function renderSimpleLive(el, match, st, rerender) {
         <button class="btn btn-primary" id="close-set">Cerrar set</button>
       </div>` : ''}
 
-    <p class="small muted center">${st.serving === 'us'
-      ? `Saca ${teamName}${server ? ` · ${server.number} ${server.name}` : ''}`
-      : `Saca ${match.opponent}`} · Rotación R${rot}</p>
+    <div class="rot-bar">
+      <span class="small muted">${st.serving === 'us'
+        ? `Saca ${teamName}${server ? ` · ${server.number} ${server.name}` : ''}`
+        : `Saca ${match.opponent}`}</span>
+      <span class="rot-fix">
+        <button class="btn btn-small" data-rot="menos" aria-label="Rotación anterior">↺</button>
+        <b>R${rot}</b>
+        <button class="btn btn-small" data-rot="mas" aria-label="Rotación siguiente">↻</button>
+      </span>
+      <label class="rot-check small"><input type="checkbox" id="count-rot" ${match.ignoreRot ? '' : 'checked'} /> Contar rotación</label>
+    </div>
+    ${match.ignoreRot ? html`<p class="small muted center">Los puntos no cuentan en las estadísticas por rotación hasta que vuelvas a marcar la casilla (corrige la rotación con ↺ ↻ si hace falta).</p>` : ''}
 
     <section class="simple-grid">
       <div class="simple-col">
@@ -918,12 +941,21 @@ function renderSimpleLive(el, match, st, rerender) {
           <li class="log-item">
             <span class="score-tag ${e.point === 'us' ? 'tone-good' : 'tone-error'}">${score}</span>
             <span class="grow small">${e.how ? reasonLabel(e.point, e.how) : describeEvent(e)}</span>
-            <span class="muted small">R${e.rot ?? '?'}</span>
+            <span class="muted small">${e.rotOff ? 'R —' : `R${e.rot ?? '?'}`}</span>
           </li>`)}
       </ol>
     </section>
   `;
 
+  el.querySelectorAll('[data-rot]').forEach((b) => b.addEventListener('click', () => {
+    const def = b.dataset.rot === 'mas' ? TEAM_EVENTS.rotMas : TEAM_EVENTS.rotMenos;
+    addEvent(match.id, { skill: def.skill, result: def.result });
+    rerender();
+  }));
+  el.querySelector('#count-rot').addEventListener('change', (e) => {
+    setIgnoreRot(match.id, !e.target.checked);
+    rerender();
+  });
   el.querySelectorAll('[data-point]').forEach((b) => b.addEventListener('click', () => {
     const team = b.dataset.point;
     const def = team === 'us' ? TEAM_EVENTS.rallyUs : TEAM_EVENTS.rallyThem;

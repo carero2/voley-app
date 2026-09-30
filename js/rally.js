@@ -89,6 +89,11 @@ export function setState(match, setNum) {
       st.slots[e.slot] = e.playerId;
       continue;
     }
+    // Corrección manual de la rotación (no es un punto).
+    if (e.skill === 'rotacion') {
+      st.rotations += e.result === 'menos' ? -1 : 1;
+      continue;
+    }
     st.rallyEvents.push(e);
     if (e.point === 'us') {
       st.us++;

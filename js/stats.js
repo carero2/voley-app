@@ -100,9 +100,10 @@ export function teamSummary(events) {
 
 // Modo sencillo: cuántos puntos gana cada equipo por cada motivo (ace, ataque, bloqueo, errores del otro).
 export function pointReasons(events) {
-  const out = { us: {}, them: {}, total: 0 };
+  const out = { us: {}, them: {}, total: 0, extra: 0 };
   for (const e of events) {
     if (e.skill !== 'cierre' || !e.how || !e.point) continue;
+    if (e.how === 'extra') { out.extra++; continue; } // «+1»: sin motivo, fuera de las estadísticas
     out[e.point][e.how] = (out[e.point][e.how] || 0) + 1;
     out.total++;
   }
@@ -113,7 +114,7 @@ export function pointReasons(events) {
 export function rotationStats(events) {
   const rows = new Map([1, 2, 3, 4, 5, 6].map((r) => [r, { rot: r, recv: 0, sideOut: 0, serve: 0, breaks: 0, won: 0, lost: 0 }]));
   for (const e of events) {
-    if (!e.point || !e.rot || !e.serving) continue;
+    if (!e.point || !e.rot || !e.serving || e.rotOff) continue;
     const r = rows.get(e.rot);
     if (e.point === 'us') r.won++; else r.lost++;
     if (e.serving === 'them') {
@@ -125,6 +126,36 @@ export function rotationStats(events) {
     }
   }
   return [...rows.values()];
+}
+
+// Side-out y break de los dos equipos. El del rival sale de los mismos puntos:
+// su side-out son los puntos que gana cuando sacamos nosotros y su break los que gana sacando.
+export function serveReceive(events) {
+  const r = { recv: 0, sideOut: 0, serve: 0, breaks: 0 };
+  for (const e of events) {
+    if (!e.point || !e.serving) continue;
+    if (e.serving === 'them') { r.recv++; if (e.point === 'us') r.sideOut++; }
+    else { r.serve++; if (e.point === 'us') r.breaks++; }
+  }
+  const ratio = (a, b) => (b ? a / b : null);
+  return {
+    us: { sideOut: ratio(r.sideOut, r.recv), break: ratio(r.breaks, r.serve), recv: r.recv, serve: r.serve, so: r.sideOut, br: r.breaks },
+    them: { sideOut: ratio(r.serve - r.breaks, r.serve), break: ratio(r.recv - r.sideOut, r.recv), recv: r.serve, serve: r.recv, so: r.serve - r.breaks, br: r.recv - r.sideOut },
+  };
+}
+
+// Evolución del marcador de cada set: diferencia (nosotros − rival) tras cada punto.
+export function scoreProgress(events) {
+  const sets = new Map();
+  for (const e of events) {
+    if (!e.point) continue;
+    const k = `${e.matchId}|${e.set}`;
+    if (!sets.has(k)) sets.set(k, { set: e.set, matchId: e.matchId, points: [] });
+    const s = sets.get(k);
+    const last = s.points.at(-1) ?? { us: 0, them: 0 };
+    s.points.push({ us: last.us + (e.point === 'us' ? 1 : 0), them: last.them + (e.point === 'them' ? 1 : 0), how: e.how ?? null, winner: e.point });
+  }
+  return [...sets.values()];
 }
 
 // Recuento por zona (1..6) de un fundamento, usando la zona de origen o la de destino.

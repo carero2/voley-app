@@ -10,6 +10,7 @@
   --primary: #1d5fb4;
   --primary-ink: #ffffff;
   --series-1: #2a78d6;
+  --series-2: #eb6834;
   --good: #16803c;
   --good-bg: #e3f4e8;
   --ok: #1d5fb4;
@@ -34,6 +35,7 @@
     --text-2: #b0b4ba;
     --primary: #3f86e0;
     --series-1: #3987e5;
+  --series-2: #d95926;
     --good: #5fd38a;
     --good-bg: #16301f;
     --ok: #7fb0f0;
@@ -55,6 +57,7 @@
   --text-2: #b0b4ba;
   --primary: #3f86e0;
   --series-1: #3987e5;
+  --series-2: #d95926;
   --good: #5fd38a;
   --good-bg: #16301f;
   --ok: #7fb0f0;
@@ -613,3 +616,34 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 .simple-col .btn .small { display: block; font-size: .72rem; }
 .score-tag { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3.2em; text-align: center; border-radius: 6px; padding: 2px 6px; }
 .stats-table td.left { text-align: left; white-space: normal; }
+.rot-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 6px 0 4px; }
+.rot-fix { display: inline-flex; align-items: center; gap: 6px; }
+.rot-fix .btn-small { min-height: 34px; min-width: 38px; padding: 0 8px; }
+.rot-check { display: inline-flex; align-items: center; gap: 6px; }
+.simple-col .btn-extra { background: var(--surface-2); color: var(--text); }
+
+/* Resumen: barras emparejadas (nosotros = serie 1, rival = serie 2) y evolución del marcador. */
+.viz-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; color: var(--text-2); margin: 0 0 8px; }
+.viz-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw-us, .fill-us { background: var(--series-1); }
+.sw-them, .fill-them { background: var(--series-2); }
+.pairs { display: flex; flex-direction: column; gap: 10px; }
+.pair-row { display: flex; flex-direction: column; gap: 2px; }
+.pair-label { font-size: .85rem; color: var(--text); }
+.pair-bar { position: relative; display: grid; grid-template-columns: 1fr 3.2em; align-items: center; gap: 8px; border-radius: 6px; outline: none; }
+.pair-bar .bar-track { height: 12px; }
+.pair-bar .bar-fill { border-radius: 0 4px 4px 0; }
+.pair-bar:hover, .pair-bar:focus-visible { background: var(--surface-2); }
+.pair-bar:hover .bar-tip, .pair-bar:focus .bar-tip { display: block; left: 0; }
+.score-line { margin: 6px 0 10px; }
+.score-line figcaption { margin-bottom: 2px; }
+.score-line svg { width: 100%; height: auto; display: block; }
+.score-line .axis { stroke: var(--border); stroke-width: 1; }
+.score-line .line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; }
+.score-line .end { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
+.score-line .tick, .score-line .end-label { font-size: 10px; fill: var(--text-2); font-variant-numeric: tabular-nums; }
+.score-line .end-label { fill: var(--text); font-weight: 700; }
+.score-line .hit { fill: transparent; }
+.score-line .hit:hover { fill: var(--surface-2); opacity: .6; }
+.set-done h2 { margin-top: 0; }

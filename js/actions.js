@@ -78,12 +78,16 @@ export const TEAM_EVENTS = {
   // Modo voz: cierre del punto con un botón; el detalle llega después desde el audio.
   rallyUs: { skill: 'cierre', result: 'us', point: 'us', label: 'Punto propio' },
   rallyThem: { skill: 'cierre', result: 'them', point: 'them', label: 'Punto rival' },
+  // Corrección manual de la rotación (si se pasó algún punto sin apuntar).
+  rotMas: { skill: 'rotacion', result: 'mas', point: null, label: 'Rotación corregida (+1)' },
+  rotMenos: { skill: 'rotacion', result: 'menos', point: null, label: 'Rotación corregida (−1)' },
 };
 
-const TEAM_SKILLS = ['rival', 'equipo', 'cierre'];
+const TEAM_SKILLS = ['rival', 'equipo', 'cierre', 'rotacion'];
 
 // Modo sencillo: al cerrar cada punto solo se dice qué equipo lo gana y cómo.
 // `own`: la acción es del equipo que gana el punto (ace, ataque, bloqueo); si no, es un error del otro equipo.
+// «+1» suma el punto sin motivo (otro error o un punto que se pasó sin apuntar): no cuenta en las estadísticas.
 export const POINT_REASONS = [
   { id: 'ace', label: 'Ace', own: true },
   { id: 'ataque', label: 'Ataque', own: true },
@@ -91,14 +95,24 @@ export const POINT_REASONS = [
   { id: 'error_saque', label: 'Error de saque', own: false },
   { id: 'error_ataque', label: 'Error de ataque', own: false },
   { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false },
-  { id: 'error_otro', label: 'Otro error', hint: 'red, invasión, rotación…', own: false },
+  { id: 'extra', label: '+1', hint: 'otro error / sin analizar', own: null, noStats: true },
+  { id: 'error_otro', label: 'Otro error', own: false, legacy: true },
 ];
+// Motivos posibles según quién saca: solo hay ace del equipo que saca y error de saque del que saca.
+export function reasonAvailable(winner, id, serving) {
+  const r = POINT_REASONS.find((x) => x.id === id);
+  if (!r || r.legacy) return false;
+  if (id === 'ace') return winner === serving;
+  if (id === 'error_saque') return winner !== serving;
+  return true;
+}
 export const reasonById = (id) => POINT_REASONS.find((r) => r.id === id);
 
 // Texto del botón según quién gana el punto: «Ataque rival», «Error de saque propio»…
 export function reasonLabel(winner, id) {
   const r = reasonById(id);
   if (!r) return id;
+  if (r.own === null) return r.label;
   if (r.own) return winner === 'us' ? r.label : `${r.label} rival`;
   return `${r.label} ${winner === 'us' ? 'rival' : 'propio'}`;
 }
@@ -106,7 +120,7 @@ export function reasonLabel(winner, id) {
 // Origen del punto en los términos de las estadísticas de equipo.
 export function reasonCause(winner, id) {
   const own = reasonById(id)?.own;
-  if (own === undefined) return null;
+  if (own === undefined || own === null) return null;
   if (winner === 'us') return own ? 'own' : 'rivalError';
   return own ? 'rivalPoint' : 'ownError';
 }

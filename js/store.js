@@ -298,6 +298,8 @@ export function addEvent(matchId, {
   // Modo sencillo: cómo se ganó el punto (ace, ataque, error de recepción…).
   if (how) ev.how = how;
   if (cause) ev.cause = cause;
+  // Rotación sin contar (se perdió la cuenta): el punto no entra en las estadísticas por rotación.
+  if (match.ignoreRot && ev.point) ev.rotOff = true;
   match.events.push(ev);
   persist();
   return ev;
@@ -368,6 +370,11 @@ export function setVoice(matchId, key, patch) {
   match.voice[key] = { ...(match.voice[key] || {}), ...patch };
   persist();
   return match.voice[key];
+}
+
+export function setIgnoreRot(matchId, value) {
+  matchById(matchId).ignoreRot = Boolean(value);
+  persist();
 }
 
 export function setMatchMode(matchId, mode) {
