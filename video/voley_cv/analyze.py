@@ -22,6 +22,8 @@ TOUCH_MIN_ANGLE = 25.0  # grados de cambio de dirección
 TOUCH_MIN_GAP = 0.25  # s entre dos toques
 TOUCH_MAX_DIST = 0.5  # distancia balón-jugador (en alturas de la caja del jugador) para asignar el toque
 SIDE_CONFIRM = 3  # fotogramas seguidos al otro lado de la red para contar un paso de red
+STATIC_CELL = 24  # px: tamaño de la cuadrícula para buscar «balones» quietos
+STATIC_SECONDS = 8.0  # un «balón» que aparece tanto tiempo en el mismo sitio no es el balón en juego
 
 
 def analyze(header: dict, frames: list, court: Court, use_tracker: bool = True) -> dict:
@@ -30,7 +32,8 @@ def analyze(header: dict, frames: list, court: Court, use_tracker: bool = True) 
     ppm = court.px_per_meter()
 
     players = _players(frames, court, fps, use_tracker)
-    ball = _track_ball(frames, dt, ppm)
+    static = _static_cells(frames, dt)
+    ball = _track_ball(frames, dt, ppm, static)
     sides = _ball_sides(ball, court)
     crossings = _crossings(frames, sides)
     touches = _touches(frames, ball, players, court, dt, ppm, sides)
@@ -41,7 +44,8 @@ def analyze(header: dict, frames: list, court: Court, use_tracker: bool = True) 
         out_frames.append({"f": rec["f"], "t": rec["f"] / header["fps"], "players": players[i],
                            "ball": ball[i], "ball_side": sides[i]})
     result = {"header": header, "court": court.to_json(), "frames": out_frames, "touches": touches,
-              "crossings": crossings, "possessions": possessions}
+              "crossings": crossings, "possessions": possessions,
+              "static_spots": [[(cx + 0.5) * STATIC_CELL, (cy + 0.5) * STATIC_CELL] for cx, cy in sorted(static)]}
     result["metrics"] = metrics(result)
     return result
 
@@ -83,15 +87,39 @@ def _players(frames, court: Court, fps, use_tracker):
 
 # ---------- Balón ----------
 
-def _track_ball(frames, dt, ppm):
+def _cell(b):
+    return int((b[0] + b[2]) / 2 // STATIC_CELL), int((b[1] + b[3]) / 2 // STATIC_CELL)
+
+
+def _static_cells(frames, dt):
+    """Sitios de la imagen donde el modelo ve un «balón» durante mucho rato (luces, conos, un balón en el suelo,
+    marcas del suelo…). El balón en juego nunca se queda tanto en el mismo sitio, así que se ignoran."""
+    from collections import Counter
+
+    counts = Counter()
+    for rec in frames:
+        counts.update({_cell(b) for b in rec["balls"]})
+    need = STATIC_SECONDS / dt
+    static = set()
+    for (cx, cy) in counts:
+        near = sum(counts.get((cx + dx, cy + dy), 0) for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+        if near >= need:
+            static.add((cx, cy))
+    # También las casillas vecinas: la detección tiembla unos píxeles alrededor del objeto.
+    return static | {(cx + dx, cy + dy) for cx, cy in static for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                     if counts.get((cx + dx, cy + dy), 0)}
+
+
+def _track_ball(frames, dt, ppm, static=frozenset()):
     """Una sola trayectoria de balón: en cada fotograma se elige la detección más cercana a la posición
-    prevista (velocidad constante); si se pierde, se empieza de nuevo con la más segura."""
+    prevista (velocidad constante); si se pierde, se empieza de nuevo con la más segura.
+    Se ignoran las detecciones en sitios «quietos» (`static`)."""
     max_step = BALL_MAX_SPEED * ppm * dt  # píxeles que puede recorrer entre fotogramas analizados
     lost_after = max(1, round(BALL_LOST_AFTER / dt))
     track = [None] * len(frames)
     last_i, last_p, vel = None, None, np.zeros(2)
     for i, rec in enumerate(frames):
-        cands = [b for b in rec["balls"]]
+        cands = [b for b in rec["balls"] if _cell(b) not in static]
         if not cands:
             continue
         centers = np.asarray([((b[0] + b[2]) / 2, (b[1] + b[3]) / 2) for b in cands])
@@ -284,6 +312,7 @@ def metrics(result: dict) -> dict:
         "ball_detected_pct": round(100 * raw_ball / n, 1),
         "ball_tracked_pct": round(100 * any_ball / n, 1),
         "ball_frames_by_side": by_side,
+        "ball_static_spots": len(result.get("static_spots", [])),
         "touches": len(result["touches"]),
         "touches_with_player_pct": round(100 * np.mean([t["player_id"] is not None or t["x"] is not None for t in result["touches"]]), 1) if result["touches"] else 0.0,
         "net_crossings": len(result["crossings"]),

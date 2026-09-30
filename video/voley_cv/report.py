@@ -18,6 +18,7 @@ def summary_text(analysis: dict) -> str:
         f"  Detectado por el modelo: {m['ball_detected_pct']}% de los fotogramas",
         f"  Con seguimiento (detectado + huecos cortos rellenados): {m['ball_tracked_pct']}%",
         f"  Fotogramas con balón en cada campo: A {m['ball_frames_by_side']['A']} · B {m['ball_frames_by_side']['B']}",
+        f"  Sitios quietos ignorados (falsos balones: luces, conos, balones parados…): {m.get('ball_static_spots', 0)} casillas",
         "",
         "JUEGO (experimental)",
         f"  Toques detectados: {m['touches']} ({m['touches_with_player_pct']}% con jugador asignado)",

@@ -139,6 +139,26 @@ if 'video' in files:
     data = b64encode(open(files['video'], 'rb').read()).decode()
     display(HTML(f'<video width="1000" controls src="data:video/mp4;base64,{data}"></video>'))""")
 
+md("""## Volver a analizar sin detectar otra vez
+Si el código del análisis se ha actualizado (seguimiento del balón, toques…), esta celda reutiliza las
+detecciones ya guardadas del último tramo: tarda segundos en vez de minutos. Ejecuta antes la celda 1 para
+bajar el código nuevo (y la 2 para saber dónde está el vídeo).""")
+
+code("""#@title 4b. Reanalizar el último tramo (sin volver a detectar)
+import glob
+from voley_cv.pipeline import analyze_file
+from voley_cv.court import Court
+from voley_cv.render import render, contact_sheet
+CAMPO = f'{CARPETA}/campo.json'
+det = max((p for p in glob.glob(f'{CARPETA}/detecciones_*.jsonl') if 'muestreo' not in p), key=os.path.getmtime)
+tag = os.path.basename(det)[len('detecciones_'):-len('.jsonl')]
+result, text = analyze_file(det, CAMPO, f'{CARPETA}/analisis_{tag}.json', ETIQUETAS or None if 'ETIQUETAS' in dir() else None)
+print(text)
+court = Court.load(CAMPO)
+files = {'detecciones': det, 'muestra': contact_sheet(VIDEO, result, court, f'{CARPETA}/muestra_{tag}.jpg'),
+         'video': render(VIDEO, result, court, f'{CARPETA}/anotado_{tag}.mp4')}
+print('Listo: ejecuta la celda 5 para verlo.')""")
+
 md("""## Fotogramas para etiquetar (entrenar el modelo)
 Recorre todo el vídeo (un fotograma cada 2 s), detecta, y guarda **N fotogramas variados con las cajas que ya
 ve el modelo** (mitad repartidos, mitad donde no vio el balón). Crea `para_etiquetar.zip` para subir a

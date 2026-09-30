@@ -57,7 +57,7 @@ def test_touches_and_crossing():
     hit_b = np.array([(pb[0] + pb[2]) / 2, pb[1] + 10])
     frames = []
     n1, n2 = 60, 60
-    for i in range(n1 + n2 + 30):
+    for i in range(n1 + n2 + 600):  # 10 s de balón parado al final: el cono sigue ahí
         if i < n1:  # de A hacia B con parábola
             s = i / n1
             p = start + (hit_b - start) * s + np.array([0, -300 * 4 * s * (1 - s)])
@@ -67,11 +67,15 @@ def test_touches_and_crossing():
         else:
             p = None
         balls = [[p[0] - 6, p[1] - 6, p[0] + 6, p[1] + 6, 0.8]] if p is not None else []
+        balls.append([100, 900, 112, 912, 0.95])  # falso balón quieto (un cono), más seguro que el real
         frames.append({"f": i, "persons": [pa, pb], "balls": balls})
     header = {"fps": fps, "stride": 1, "width": 1920, "height": 1080}
     res = analyze(header, frames, court, use_tracker=False)
     m = res["metrics"]
-    assert m["ball_detected_pct"] > 75
+    in_play = res["frames"][: n1 + n2]
+    assert sum(1 for fr in in_play if fr["ball"]) / len(in_play) > 0.9
+    assert m["ball_static_spots"] >= 1
+    assert all(fr["ball"] is None or fr["ball"]["u"] > 200 for fr in res["frames"]), "se enganchó al cono"
     assert m["players_mean"] == {"A": 1.0, "B": 1.0}
     assert m["net_crossings"] == 2, res["crossings"]
     touch_frames = [t["f"] for t in res["touches"]]

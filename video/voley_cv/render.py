@@ -38,6 +38,8 @@ def render(video_path, analysis: dict, court: Court, out_path, minimap=True, tra
             if fr is None:
                 continue
             _draw_players(frame, fr)
+            for u, v in analysis.get("static_spots", []):  # falsos balones ignorados
+                cv2.drawMarker(frame, (int(u), int(v)), (140, 140, 140), cv2.MARKER_TILTED_CROSS, 14, 1, cv2.LINE_AA)
             b = fr["ball"]
             history.append((int(b["u"]), int(b["v"])) if b else None)
             history = history[-trail:]
