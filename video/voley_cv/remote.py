@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import http.cookiejar
 import re
 import shutil
 import urllib.request
@@ -34,10 +35,19 @@ def download(link: str, dest, chunk=8 << 20, progress=True) -> Path:
         return dest
     errors = []
     login_required = False
+    # SharePoint da acceso a los enlaces «cualquier persona» con una cookie que pone al abrir el enlace
+    # (así funciona en una ventana de incógnito): se abre primero el enlace y se conservan las cookies.
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"}
+    try:
+        with opener.open(urllib.request.Request(link.strip(), headers=headers), timeout=60) as r:
+            r.read(1 << 16)
+    except Exception as e:
+        errors.append(f"abrir el enlace: {e}")
     for url in onedrive_candidates(link):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=60) as r:
+            req = urllib.request.Request(url, headers=headers)
+            with opener.open(req, timeout=60) as r:
                 ctype = r.headers.get("Content-Type", "")
                 if "text/html" in ctype:
                     page = r.read(200_000).decode("utf-8", "ignore")

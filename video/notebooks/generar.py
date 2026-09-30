@@ -39,6 +39,9 @@ else:
 %cd /content/voley-app/video
 !pip install -q -r requirements.txt
 sys.path.insert(0, '/content/voley-app/video')
+# Si el código se ha actualizado, olvida la versión cargada antes (si no, seguiría usándose la antigua).
+for m in [m for m in sys.modules if m.startswith('voley_cv')]:
+    del sys.modules[m]
 print('Listo')""")
 
 md("""## Tu vídeo
