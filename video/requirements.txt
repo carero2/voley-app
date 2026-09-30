@@ -4,3 +4,4 @@ supervision>=0.26,<0.31  # ByteTrack desaparece en 0.31
 opencv-python-headless>=4.9  # en el Mac, para calibrar con ventana: opencv-python
 numpy
 tqdm
+# Para reentrenar hace falta además: pip install "rfdetr[train,loggers]"

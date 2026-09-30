@@ -90,13 +90,19 @@ class Detector:
         balls = [[] for _ in frames_bgr]
         for (k, (ox, oy)), det in zip(owners, preds):
             for box, conf, cid in zip(det.xyxy, det.confidence, det.class_id):
-                name = self.names.get(int(cid), "")
+                name = _norm(self.names.get(int(cid), ""))
+                if self.custom and name not in PERSON_NAMES | BALL_NAMES:
+                    name = _norm(self.names.get(int(cid) - 1, ""))  # por si el índice viene desplazado
                 b = [float(box[0] + ox), float(box[1] + oy), float(box[2] + ox), float(box[3] + oy), float(conf)]
                 if name in PERSON_NAMES and conf >= self.person_conf:
                     persons[k].append(b)
                 elif name in BALL_NAMES and conf >= self.ball_conf:
                     balls[k].append(b)
         return [{"persons": _suppress(p, 0.6), "balls": _suppress(b, 0.3)} for p, b in zip(persons, balls)]
+
+
+def _norm(name):
+    return str(name).lower().replace("ó", "o").strip()
 
 
 def _suppress(boxes, thr):

@@ -170,16 +170,34 @@ from voley_cv.pipeline import frames_for_labeling
 n, zip_path = frames_for_labeling(VIDEO, CAMPO, CARPETA, N, 2.0, MODELO)
 print(f'{n} fotogramas → {zip_path}')""")
 
-md("""## (Más adelante) Reentrenar con tus etiquetas
-Cuando tengas los fotogramas corregidos en Roboflow, expórtalos en formato **COCO** (para RF-DETR), súbelos
-a Colab (o a Drive) y ejecuta esta celda. El modelo resultante (`checkpoint_best_total.pth`) se usa en la
-celda 4, campo **PESOS**.""")
+md("""## Reentrenar con tus etiquetas
+**En Roboflow** (una vez etiquetadas las imágenes):
+1. **Generate / Versions → Create new version**.
+2. **Train/Test split**: 70 % Train · 20 % Valid · 10 % Test (hacen falta las tres).
+3. **Preprocessing**: *Auto-Orient* y **Tile 3 × 2** (divide cada fotograma en 6 trozos, igual que cuando el
+   programa busca el balón). Quita *Resize* si aparece.
+4. **Augmentation** (opcional): *Flip horizontal* y *Brightness ±15 %*.
+5. **Create**, luego **Download Dataset → formato «COCO» → Show download code → pestaña Terminal** y copia la
+   línea que empieza por `curl -L "https://app.roboflow.com/ds/…`. Pégala entera en ENLACE_ROBOFLOW.
+
+**Aquí**: la celda descarga el conjunto, lo comprueba y entrena. En una T4 pueden ser **30-90 minutos**: deja
+la pestaña abierta. Al acabar, la celda 7b descarga el modelo (guárdalo en OneDrive) y en la celda 4 se pone
+su ruta en **PESOS** para comparar con el modelo sin entrenar.""")
 
 code("""#@title 7. Reentrenar
-DATASET = '/content/dataset_coco'  #@param {type:"string"}
+ENLACE_ROBOFLOW = ''  #@param {type:"string"}
 EPOCAS = 40  #@param {type:"integer"}
-from voley_cv.train import train
-train(DATASET, f'{CARPETA}/modelo', MODELO, EPOCAS)""")
+!pip install -q "rfdetr[train,loggers]"
+from voley_cv.train import fetch_dataset, describe_dataset, train
+DATASET = fetch_dataset(ENLACE_ROBOFLOW, '/content/dataset')
+print(describe_dataset(DATASET))
+MODELO_PROPIO = train(DATASET, f'{CARPETA}/modelo', MODELO, EPOCAS)
+print('Modelo entrenado:', MODELO_PROPIO)
+print('Para usarlo: en la celda 4 pon PESOS =', MODELO_PROPIO)""")
+
+code("""#@title 7b. Descargar el modelo entrenado
+from google.colab import files as colab_files
+colab_files.download(str(MODELO_PROPIO))""")
 
 code("""#@title 8. Descargar los resultados (.zip)
 import shutil
