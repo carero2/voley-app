@@ -22,6 +22,7 @@ TOUCH_MIN_ANGLE = 25.0  # grados de cambio de dirección
 TOUCH_MIN_GAP = 0.25  # s entre dos toques
 TOUCH_MAX_DIST = 0.5  # distancia balón-jugador (en alturas de la caja del jugador) para asignar el toque
 SIDE_CONFIRM = 3  # fotogramas seguidos al otro lado de la red para contar un paso de red
+CROSS_RESET = 1.0  # s sin ver el balón: al reaparecer al otro lado no se cuenta paso de red (entre puntos)
 STATIC_CELL = 24  # px: tamaño de la cuadrícula para buscar «balones» quietos
 STATIC_SECONDS = 8.0  # un «balón» que aparece tanto tiempo en el mismo sitio no es el balón en juego
 
@@ -35,7 +36,7 @@ def analyze(header: dict, frames: list, court: Court, use_tracker: bool = True) 
     static = _static_cells(frames, dt)
     ball = _track_ball(frames, dt, ppm, static)
     sides = _ball_sides(ball, court)
-    crossings = _crossings(frames, sides)
+    crossings = _crossings(frames, sides, max(1, round(CROSS_RESET / dt)))
     touches = _touches(frames, ball, players, court, dt, ppm, sides)
     possessions = _possessions(touches, crossings)
 
@@ -187,13 +188,17 @@ def _ball_sides(ball, court: Court):
     return [court.image_side(b["u"], b["v"]) if b else None for b in ball]
 
 
-def _crossings(frames, sides):
-    """Pasos de red: el balón aparece al otro lado durante SIDE_CONFIRM fotogramas seguidos."""
+def _crossings(frames, sides, reset_after=None):
+    """Pasos de red: el balón aparece al otro lado durante SIDE_CONFIRM fotogramas seguidos.
+    Si se deja de ver más de `reset_after` fotogramas, se empieza de cero (no se sabe por dónde pasó)."""
     out = []
-    current, streak, cand = None, 0, None
+    current, streak, cand, last_seen = None, 0, None, None
     for i, s in enumerate(sides):
         if s is None:
             continue
+        if reset_after is not None and last_seen is not None and i - last_seen > reset_after:
+            current, cand, streak = None, None, 0
+        last_seen = i
         if current is None:
             current = s
             continue

@@ -200,6 +200,32 @@ code("""#@title 7b. Descargar el modelo entrenado
 from google.colab import files as colab_files
 colab_files.download(str(MODELO_PROPIO))""")
 
+md("""## Puntos: solo vídeo frente a tus etiquetas
+Saca del vídeo, sin la app, dónde empieza y acaba cada punto, quién saca, quién gana y cómo, y lo compara con
+lo que marcaste en la herramienta de etiquetar. Así se ve qué parte del registro en directo puede hacer el vídeo.
+
+- **ETIQUETAS**: ruta del `.json` descargado de la herramienta (arrástralo al icono de carpeta de la izquierda;
+  si lo dejas vacío, la celda te pide que lo subas).
+- **PESOS**: el modelo reentrenado (vacío = modelo sin entrenar). Puedes pasarla con los dos y comparar.
+- Hace falta haber calibrado el campo (celda 3) en esta sesión.
+- Analiza el vídeo entero: con CADA = 2, en una T4 tarda unos 30-40 min para 14 min de vídeo. Si repites la
+  celda con el mismo modelo, reutiliza las detecciones y tarda segundos.""")
+
+code("""#@title 9. Puntos: solo vídeo frente a tus etiquetas
+ETIQUETAS = ''  #@param {type:"string"}
+PESOS = ''  #@param {type:"string"}
+MODELO = 'small'  #@param ["nano", "small", "medium"]
+CADA = 2  #@param {type:"integer"}
+MOSAICOS = '3x2'  #@param ["1x1", "2x1", "3x2", "4x3"]
+
+from voley_cv.pipeline import rallies_vs_labels
+if not ETIQUETAS:
+    from google.colab import files as colab_files
+    ETIQUETAS = os.path.abspath(next(iter(colab_files.upload())))
+c, r = map(int, MOSAICOS.split('x'))
+puntos, comparacion, texto = rallies_vs_labels(VIDEO, CAMPO, CARPETA, ETIQUETAS, CADA, MODELO, PESOS or None, (c, r))
+print(texto)""")
+
 code("""#@title 8. Descargar los resultados (.zip)
 import shutil
 from google.colab import files as colab_files

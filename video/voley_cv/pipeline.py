@@ -9,6 +9,7 @@ from .analyze import analyze
 from .court import Court
 from .detect import Detector, run_detection
 from .labels import load_rallies
+from .rallies import compare, comparison_text, infer_rallies
 from .render import contact_sheet, render
 from .report import rally_report, summary_text
 from .video_io import load_detections, video_info, write_detections
@@ -77,3 +78,31 @@ def frames_for_labeling(video, court_path, out_dir, n=300, every=2.0, model="sma
     header, frames = detect_segment(video, det_path, 0, None, stride, model, weights, tiles)
     court = Court.load(court_path) if court_path else None
     return export_training_frames(video, header, frames, court, out / "para_etiquetar", n)
+
+
+def rallies_vs_labels(video, court_path, out_dir, labels_path, stride=2, model="small", weights=None, tiles=(3, 2),
+                      start=0.0, end=None):
+    """Vídeo entero (o un tramo): puntos sacados solo del vídeo y comparación con los marcados a mano.
+    Si ya hay detecciones de ese tramo con el mismo modelo y paso, se reutilizan (la detección es lo lento)."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    name = f"{model}-{'propio' if weights else 'coco'}"
+    tag = f"{int(start)}-{int(end)}s" if end is not None else f"{int(start)}s-fin"
+    det_path = out / f"detecciones_puntos_{tag}_{name}_cada{stride}.jsonl"
+    if det_path.exists():
+        header, frames = load_detections(det_path)
+        print("Reutilizo las detecciones de", det_path.name)
+    else:
+        header, frames = detect_segment(video, det_path, start, end, stride, model, weights, tiles)
+    court = Court.load(court_path)
+    analysis = analyze(header, frames, court)
+    pred = infer_rallies(analysis, court)
+    labels = load_rallies(labels_path)
+    t0, t1 = analysis["frames"][0]["t"], analysis["frames"][-1]["t"]
+    labels = [r for r in labels if r["end"] >= t0 and r["start"] <= t1]
+    cmp = compare(pred, labels)
+    text = summary_text(analysis) + "\n\n" + comparison_text(cmp)
+    (out / f"puntos_{tag}_{name}.txt").write_text(text)
+    with open(out / f"puntos_{tag}_{name}.json", "w") as f:
+        json.dump({"video": pred, "comparacion": cmp}, f, ensure_ascii=False, indent=1)
+    return pred, cmp, text

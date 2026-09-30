@@ -11,14 +11,15 @@ El mismo código funciona en **Google Colab** (ahora) y en el **Mac** (después)
 | Parte | Para qué |
 |---|---|
 | `notebooks/prueba_colab.ipynb` | Cuaderno de Colab con todos los pasos (abrir con el enlace de abajo) |
-| `etiquetar/index.html` | Herramienta web para marcar **cuándo acaba cada punto y qué campo lo gana** (el vídeo no se sube a ningún sitio) |
+| `etiquetar/index.html` | Herramienta web para marcar **cuándo acaba cada punto, qué campo lo gana y cómo** (el vídeo no se sube a ningún sitio) |
 | `voley_cv/court.py` | Calibración: esquinas del campo → metros sobre el suelo, zonas 1-6 de cada campo |
 | `voley_cv/detect.py` | Detección con RF-DETR (COCO: «person» y «sports ball»); el balón se busca también por mosaicos |
 | `voley_cv/analyze.py` | Seguimiento del balón, jugadores sobre el campo, toques, pasos de red, posesiones y métricas |
 | `voley_cv/render.py` | Vídeo anotado con minimapa del punto |
 | `voley_cv/labels.py` | Fotogramas con etiquetas previas para corregir en Roboflow; lectura de las etiquetas de puntos |
+| `voley_cv/rallies.py` | Puntos sacados **solo del vídeo** (inicio, fin, quién saca, quién gana y cómo) y comparación con los marcados a mano |
 | `voley_cv/train.py` | Reentrenar RF-DETR con vuestros fotogramas (formato COCO exportado de Roboflow) |
-| `tests/test_analyze.py` | Pruebas con datos sintéticos (sin red neuronal) |
+| `tests/` | Pruebas con datos sintéticos (sin red neuronal) |
 
 ## Colab
 
@@ -28,7 +29,8 @@ Abrir: <https://colab.research.google.com/github/carero2/voley-app/blob/claude/v
 2. El vídeo original puede estar en **OneDrive** (compártelo como «cualquier persona con el vínculo» y pega el
    enlace; se descarga a Colab) o en **Google Drive**.
 3. Ejecuta las celdas en orden: preparar → vídeo → calibrar (clics) → analizar un tramo → ver resultado →
-   exportar fotogramas para etiquetar → (más adelante) reentrenar → descargar resultados (.zip).
+   exportar fotogramas para etiquetar → reentrenar → puntos solo vídeo frente a tus etiquetas (celda 9) →
+   descargar resultados (.zip).
 
 Calibración: se marcan las esquinas y los extremos de la línea central y de las líneas de ataque; cualquier
 punto se puede saltar (p. ej. una esquina fuera de la imagen). Bastan 4 que no estén en línea.
@@ -37,9 +39,18 @@ punto se puede saltar (p. ej. una esquina fuera de la imagen). Bastan 4 que no e
 
 <https://carero2.github.io/voley-app/video/etiquetar/> — abre el vídeo desde el móvil u ordenador, pulsa
 **Punto A / Punto B** al acabar cada punto (A = campo izquierdo en vista lateral, o el cercano en vista de
-fondo), **Fin de set** entre sets, y **Descargar etiquetas**. El `.json` se usa en la celda 4 (campo
-ETIQUETAS) para comparar el análisis punto a punto. A es siempre el mismo lado del vídeo, aunque los equipos
-cambien de campo.
+fondo) y elige el motivo, marca quién saca primero en cada set, **Fin de set** entre sets, y **Descargar
+etiquetas**. «Inicio punto» es opcional (solo sirve para medir si el vídeo corta bien los puntos). A es siempre
+el mismo lado del vídeo, aunque los equipos cambien de campo.
+
+El `.json` se usa en la **celda 9**: el vídeo saca los puntos por su cuenta (sin mirar las etiquetas) y se
+mide cuántos encuentra y si acierta quién saca, quién gana y el motivo. Reglas que usa:
+- **Saque**: el primer paso de red que sale de un jugador en su línea de fondo (o detrás).
+- **Ganador**: el que saca el punto siguiente; en el último del set, por dónde acaba el balón (dentro de un
+  campo → gana el otro; fuera → falló el que la mandó).
+- **Motivo**: sin paso de red → error de saque; un paso y no vuelve → ace (o error de saque si gana el que
+  recibe); el balón acaba en el campo del que gana → error de ataque del rival; vuelve enseguida tras un ataque
+  → bloqueo; el que pierde casi no la toca → ataque; la toca 2-3 veces sin pasarla → error de recepción/ataque.
 
 ## Etiquetar para entrenar (Roboflow)
 
@@ -63,7 +74,7 @@ python -m voley_cv run partido.mov --court campo.json --start 60 --end 120 --str
 ```
 
 Usa la GPU del chip M automáticamente. Otras órdenes: `info`, `frame`, `detect`, `analyze`, `render`,
-`export-frames`, `train` (`python -m voley_cv --help`).
+`export-frames`, `puntos`, `train` (`python -m voley_cv --help`).
 
 ## Cómo leer el resumen
 

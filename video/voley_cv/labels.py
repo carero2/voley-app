@@ -67,21 +67,26 @@ def _yolo(cls, box, W, H):
 
 def load_rallies(path):
     """Lee las etiquetas de puntos y devuelve la lista de puntos:
-    [{start, end, winner ('A'/'B'), set}] con tiempos en segundos del vídeo."""
+    [{start, end, winner ('A'/'B'), how, set, server}] con tiempos en segundos del vídeo.
+    `server` sale de «quién saca primero en el set» y de que saca quien ganó el punto anterior."""
     with open(path) as f:
         data = json.load(f)
     events = sorted(data.get("events", []), key=lambda e: e["t"])
+    first = {int(k): v for k, v in (data.get("firstServe") or {}).items() if v}
     rallies, start, set_n = [], None, 1
+    server = first.get(1)
     for e in events:
         if e["type"] == "set":
             set_n += 1
             start = None
+            server = first.get(set_n)
         elif e["type"] == "start":
             start = e["t"]
         elif e["type"] == "point":
             # Sin «inicio» marcado, el punto empieza unos segundos después del anterior.
             s = start if start is not None else (rallies[-1]["end"] + 3.0 if rallies else max(0.0, e["t"] - 12.0))
             rallies.append({"start": s, "end": e["t"], "winner": e.get("side"), "how": e.get("how"),
-                            "set": set_n})
+                            "set": set_n, "server": server, "start_marked": start is not None})
+            server = e.get("side") or server
             start = None
     return rallies

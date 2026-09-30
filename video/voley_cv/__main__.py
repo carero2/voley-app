@@ -87,6 +87,18 @@ def main(argv=None):
     p.add_argument("--no-video", action="store_true")
     p.add_argument("--out-dir", default="resultados")
 
+    p = sub.add_parser("puntos", help="puntos sacados solo del vídeo, comparados con los marcados a mano")
+    p.add_argument("video")
+    p.add_argument("--court", required=True)
+    p.add_argument("--labels", required=True, help=".json de la herramienta de etiquetar puntos")
+    p.add_argument("--start", type=float, default=0.0)
+    p.add_argument("--end", type=float)
+    p.add_argument("--stride", type=int, default=2)
+    p.add_argument("--model", default="small", choices=["nano", "small", "medium", "large"])
+    p.add_argument("--weights")
+    p.add_argument("--tiles", type=_tiles, default=(3, 2))
+    p.add_argument("--out-dir", default="resultados")
+
     p = sub.add_parser("train", help="reentrenar con un dataset COCO exportado de Roboflow")
     p.add_argument("dataset")
     p.add_argument("--out", default="modelo")
@@ -145,6 +157,11 @@ def main(argv=None):
                                  a.tiles, a.rallies, not a.no_video)
         print(text)
         print(json.dumps(files, indent=2, ensure_ascii=False))
+    elif a.cmd == "puntos":
+        from .pipeline import rallies_vs_labels
+        _, _, text = rallies_vs_labels(a.video, a.court, a.out_dir, a.labels, a.stride, a.model, a.weights,
+                                       a.tiles, a.start, a.end)
+        print(text)
     elif a.cmd == "train":
         from .train import train
         print(train(a.dataset, a.out, a.model, a.epochs, a.batch))
