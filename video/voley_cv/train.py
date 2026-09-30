@@ -64,19 +64,37 @@ def describe_dataset(root) -> str:
     return "\n".join(lines)
 
 
-def train(dataset_dir, out_dir, model="small", epochs=40, batch_size=4, grad_accum=4, lr=1e-4, resolution=None):
-    """Reentrena y devuelve la ruta del mejor modelo (checkpoint_best_total.pth)."""
+def train(dataset_dir, out_dir, model="small", epochs=40, batch_size=4, grad_accum=4, lr=1e-4, resolution=None,
+          patience=8):
+    """Reentrena y devuelve la ruta del mejor modelo.
+
+    - Si en `out_dir` ya hay un entrenamiento a medias (last.ckpt), sigue donde se quedó.
+    - Para solo si en `patience` épocas seguidas no mejora (ahorra tiempo de GPU).
+    - Mientras entrena, el mejor modelo hasta el momento se guarda en `out_dir` (checkpoint_best_ema.pth):
+      si la sesión se corta, ese archivo ya sirve."""
     import rfdetr
 
     cls = getattr(rfdetr, VARIANTS[model])
     m = cls(device=pick_device())
     kwargs = dict(dataset_dir=str(dataset_dir), epochs=epochs, batch_size=batch_size,
-                  grad_accum_steps=grad_accum, lr=lr, output_dir=str(out_dir))
+                  grad_accum_steps=grad_accum, lr=lr, output_dir=str(out_dir),
+                  checkpoint_interval=epochs,  # sin copias cada 10 épocas (ocupan mucho)
+                  early_stopping=bool(patience), early_stopping_patience=patience or 10)
+    last = Path(out_dir) / "last.ckpt"
+    if last.exists():
+        print("Sigo el entrenamiento anterior desde", last)
+        kwargs["resume"] = str(last)
     if resolution:
         kwargs["resolution"] = resolution
     m.train(**kwargs)
-    best = Path(out_dir) / "checkpoint_best_total.pth"
-    if not best.exists():
-        found = sorted(Path(out_dir).glob("checkpoint_best*.pth")) or sorted(Path(out_dir).glob("*.pth"))
-        best = found[0] if found else best
-    return best
+    return best_checkpoint(out_dir)
+
+
+def best_checkpoint(out_dir):
+    """El mejor modelo disponible: el final si el entrenamiento acabó; si se cortó, el mejor guardado."""
+    for name in ("checkpoint_best_total.pth", "checkpoint_best_ema.pth", "checkpoint_best_regular.pth"):
+        p = Path(out_dir) / name
+        if p.exists():
+            return p
+    found = sorted(Path(out_dir).glob("*.pth"))
+    return found[0] if found else None

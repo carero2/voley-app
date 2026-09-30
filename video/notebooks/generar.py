@@ -181,50 +181,41 @@ md("""## Reentrenar con tus etiquetas
    línea que empieza por `curl -L "https://app.roboflow.com/ds/…`. Pégala entera en ENLACE_ROBOFLOW.
 
 **Aquí**: la celda descarga el conjunto, lo comprueba y entrena. En una T4 pueden ser **30-90 minutos**: deja
-la pestaña abierta. Al acabar, la celda 7b descarga el modelo (guárdalo en OneDrive) y en la celda 4 se pone
-su ruta en **PESOS** para comparar con el modelo sin entrenar.""")
+la pestaña abierta. Con **GUARDAR_EN_DRIVE** el modelo se va guardando en tu Google Drive (pide permiso al
+empezar): si la sesión se corta no se pierde, y repitiendo la celda sigue donde se quedó. Para sola si deja de
+mejorar. La celda 7b descarga el mejor modelo, también si paraste el entrenamiento a mano (botón ⏹).""")
 
 code("""#@title 7. Reentrenar
 ENLACE_ROBOFLOW = ''  #@param {type:"string"}
 EPOCAS = 40  #@param {type:"integer"}
 MODELO = 'small'  #@param ["nano", "small", "medium"]
+GUARDAR_EN_DRIVE = True  #@param {type:"boolean"}
 !pip install -q "rfdetr[train,loggers]"
 from voley_cv.train import fetch_dataset, describe_dataset, train
+if GUARDAR_EN_DRIVE:
+    # El modelo se va guardando en tu Google Drive mientras entrena (unos 0,5-1 GB): si la sesión se corta,
+    # no se pierde, y al repetir esta celda sigue donde se quedó.
+    from google.colab import drive
+    drive.mount('/content/drive')
+    CARPETA_MODELO = '/content/drive/MyDrive/voley/modelo'
+else:
+    CARPETA_MODELO = f'{CARPETA}/modelo'
 DATASET = fetch_dataset(ENLACE_ROBOFLOW, '/content/dataset')
 print(describe_dataset(DATASET))
-MODELO_PROPIO = train(DATASET, f'{CARPETA}/modelo', MODELO, EPOCAS)
+MODELO_PROPIO = train(DATASET, CARPETA_MODELO, MODELO, EPOCAS)
 print('Modelo entrenado:', MODELO_PROPIO)
-print('Para usarlo: en la celda 4 pon PESOS =', MODELO_PROPIO)""")
+print('Para usarlo: en la celda 4 o 9 pon PESOS =', MODELO_PROPIO)""")
 
-code("""#@title 7b. Descargar el modelo entrenado
+code("""#@title 7b. Descargar el modelo entrenado (también si el entrenamiento se paró a medias)
+from voley_cv.train import best_checkpoint
 from google.colab import files as colab_files
+try:
+    CARPETA_MODELO
+except NameError:
+    CARPETA_MODELO = f'{CARPETA}/modelo'
+MODELO_PROPIO = best_checkpoint(CARPETA_MODELO)
+print('Descargando', MODELO_PROPIO)
 colab_files.download(str(MODELO_PROPIO))""")
-
-md("""## Puntos: solo vídeo frente a tus etiquetas
-Saca del vídeo, sin la app, dónde empieza y acaba cada punto, quién saca, quién gana y cómo, y lo compara con
-lo que marcaste en la herramienta de etiquetar. Así se ve qué parte del registro en directo puede hacer el vídeo.
-
-- **ETIQUETAS**: ruta del `.json` descargado de la herramienta (arrástralo al icono de carpeta de la izquierda;
-  si lo dejas vacío, la celda te pide que lo subas).
-- **PESOS**: el modelo reentrenado (vacío = modelo sin entrenar). Puedes pasarla con los dos y comparar.
-- Hace falta haber calibrado el campo (celda 3) en esta sesión.
-- Analiza el vídeo entero: con CADA = 2, en una T4 tarda unos 30-40 min para 14 min de vídeo. Si repites la
-  celda con el mismo modelo, reutiliza las detecciones y tarda segundos.""")
-
-code("""#@title 9. Puntos: solo vídeo frente a tus etiquetas
-ETIQUETAS = ''  #@param {type:"string"}
-PESOS = ''  #@param {type:"string"}
-MODELO = 'small'  #@param ["nano", "small", "medium"]
-CADA = 2  #@param {type:"integer"}
-MOSAICOS = '3x2'  #@param ["1x1", "2x1", "3x2", "4x3"]
-
-from voley_cv.pipeline import rallies_vs_labels
-if not ETIQUETAS:
-    from google.colab import files as colab_files
-    ETIQUETAS = os.path.abspath(next(iter(colab_files.upload())))
-c, r = map(int, MOSAICOS.split('x'))
-puntos, comparacion, texto = rallies_vs_labels(VIDEO, CAMPO, CARPETA, ETIQUETAS, CADA, MODELO, PESOS or None, (c, r))
-print(texto)""")
 
 code("""#@title 8. Descargar los resultados (.zip)
 import shutil
