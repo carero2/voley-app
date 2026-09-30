@@ -44,8 +44,10 @@ cambien de campo.
 ## Etiquetar para entrenar (Roboflow)
 
 1. La celda 6 crea `para_etiquetar.zip` (imágenes + cajas que ya ve el modelo, formato YOLO).
-2. En Roboflow: nuevo proyecto de detección de objetos, sube el zip, corrige las cajas (clases `balon` y
-   `jugador`; no marques público ni árbitros).
+2. En Roboflow: nuevo proyecto de detección de objetos, sube el zip, corrige las cajas. Clase `balon`: todos
+   los balones reales (no cabezas, luces…). Clase `jugador`: en realidad «persona», **todas** las que se vean
+   bien (también banquillo y árbitros); quién juega lo decide la calibración del campo. Cajas ajustadas y con
+   el borde inferior en los pies.
 3. Genera una versión y expórtala en formato **COCO** a Drive; celda 7 para reentrenar.
 4. Usa el modelo resultante en la celda 4 (campo PESOS).
 

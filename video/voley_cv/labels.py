@@ -44,11 +44,10 @@ def export_training_frames(video_path, header, frames, court: Court | None, out_
         for b in rec["balls"]:
             if b[4] >= 0.3:
                 lines.append(_yolo(0, b, W, H))
+        # Todas las personas (también banquillo, árbitros y público cercano): al detector se le enseña a
+        # ver personas; quién está jugando lo decide después la calibración del campo. Dejar personas sin
+        # caja le enseñaría que «eso no es una persona» y empeoraría la detección de los jugadores.
         for p in rec["persons"]:
-            if court is not None:
-                x, y = court.feet_position(p)
-                if not court.in_play_area(x, y):
-                    continue  # público, banquillo y árbitros no se etiquetan como jugadores
             lines.append(_yolo(1, p, W, H))
         (out / "labels" / f"{name}.txt").write_text("\n".join(lines))
         written += 1
