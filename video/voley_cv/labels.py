@@ -81,6 +81,7 @@ def load_rallies(path):
         elif e["type"] == "point":
             # Sin «inicio» marcado, el punto empieza unos segundos después del anterior.
             s = start if start is not None else (rallies[-1]["end"] + 3.0 if rallies else max(0.0, e["t"] - 12.0))
-            rallies.append({"start": s, "end": e["t"], "winner": e.get("side"), "set": set_n})
+            rallies.append({"start": s, "end": e["t"], "winner": e.get("side"), "how": e.get("how"),
+                            "set": set_n})
             start = None
     return rallies

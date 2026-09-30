@@ -30,6 +30,8 @@
   li .x { margin-left:auto; padding:4px 10px; }
   kbd { border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12px; }
   input[type=file] { display:none; }
+  .reason { padding:12px 14px; }
+  [data-serve].sel { background:var(--accent); color:#fff; border-color:transparent; }
   .grid { display:grid; grid-template-columns: 1fr; gap:12px; }
   @media (min-width: 900px) { .grid { grid-template-columns: 2fr 1fr; } }
 </style>
@@ -37,7 +39,7 @@
 <body>
 <main>
   <h1>Etiquetar puntos del vídeo</h1>
-  <p class="hint">El vídeo se abre en este dispositivo: no se sube a ningún sitio. Marca cuándo termina cada punto y qué campo lo gana; el inicio (saque) es opcional. Se guarda solo mientras trabajas; al acabar pulsa <b>Descargar etiquetas</b>.</p>
+  <p class="hint">El vídeo se abre en este dispositivo: no se sube a ningún sitio. Al acabar cada punto, pulsa qué campo lo gana y después <b>cómo</b> (igual que el modo sencillo de la app); el inicio (saque) es opcional. Se guarda solo mientras trabajas; al acabar pulsa <b>Descargar etiquetas</b>.</p>
 
   <div class="card row">
     <label class="file">Abrir vídeo<input type="file" id="file" accept="video/*"></label>
@@ -73,6 +75,16 @@
         <button class="big pb" id="bB">Punto B <kbd>D</kbd></button>
         <button id="bSet">Fin de set <kbd>F</kbd></button>
         <button id="bUndo">Deshacer <kbd>Z</kbd></button>
+      </div>
+      <div class="card row" id="serveRow">
+        <span>Saca primero en este set:</span>
+        <button data-serve="A">A</button>
+        <button data-serve="B">B</button>
+        <span class="muted" id="serveInfo"></span>
+      </div>
+      <div class="card" id="reasons" hidden>
+        <div id="reasonTitle" style="font-weight:600;margin-bottom:8px"></div>
+        <div class="row" id="reasonButtons"></div>
       </div>
       <p class="muted">Teclado: <kbd>Espacio</kbd> reproducir/pausa · <kbd>←</kbd>/<kbd>→</kbd> ±1 s · <kbd>,</kbd>/<kbd>.</kbd> fotograma a fotograma. Truco: a 2× o 3× se etiqueta un partido en poco tiempo; al final del punto, pausa y marca.</p>
     </div>
@@ -112,11 +124,60 @@ function fmt(t) {
   return `${m}:${(t - m * 60).toFixed(1).padStart(4, '0')}`;
 }
 
-function add(type, side) {
+// Motivos del punto (los mismos que el modo sencillo de la app).
+const REASONS = [
+  { id: 'ace', label: 'Ace', own: true },
+  { id: 'ataque', label: 'Ataque', own: true },
+  { id: 'bloqueo', label: 'Bloqueo', own: true },
+  { id: 'error_saque', label: 'Error de saque', own: false },
+  { id: 'error_ataque', label: 'Error de ataque', own: false },
+  { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false },
+  { id: 'extra', label: '+1 (otro error / sin analizar)', own: null },
+];
+let pending = null; // punto marcado a falta de elegir el motivo
+
+// Quién saca en el momento actual del vídeo: el primero del set o el que ganó el punto anterior.
+function serverAt(t) {
+  let server = state.firstServe?.[1] ?? null;
+  let set = 1;
+  for (const e of state.events) {
+    if (e.t > t) break;
+    if (e.type === 'set') { set++; server = state.firstServe?.[set] ?? null; }
+    else if (e.type === 'point') server = e.side;
+  }
+  return { server, set };
+}
+
+function add(type, side, extra = {}) {
   if (!state.video) return alert('Abre primero el vídeo.');
-  state.events.push({ t: Math.round(video.currentTime * 100) / 100, type, ...(side ? { side } : {}) });
+  state.events.push({ t: Math.round(video.currentTime * 100) / 100, type, ...(side ? { side } : {}), ...extra });
   state.events.sort((a, b) => a.t - b.t);
   save();
+  render();
+}
+
+function askReason(side) {
+  if (!state.video) return alert('Abre primero el vídeo.');
+  video.pause();
+  pending = { side, t: Math.round(video.currentTime * 100) / 100 };
+  const { server } = serverAt(pending.t);
+  const other = side === 'A' ? 'B' : 'A';
+  const list = REASONS.filter((r) => !server || (r.id === 'ace' ? server === side : r.id === 'error_saque' ? server === other : true));
+  $('#reasonTitle').textContent = `Punto ${side}: ¿cómo? (teclas 1-${list.length}, Esc cancela)`;
+  $('#reasonButtons').innerHTML = list.map((r, i) => `<button class="reason ${side === 'A' ? 'pa' : 'pb'}" data-how="${r.id}">${i + 1}. ${r.own === false ? `${r.label} de ${other}` : r.label}</button>`).join('')
+    + '<button data-how="">Cancelar</button>';
+  $('#reasons').hidden = false;
+}
+
+function chooseReason(how) {
+  if (!pending) return;
+  if (how !== null && how !== '') {
+    state.events.push({ t: pending.t, type: 'point', side: pending.side, how });
+    state.events.sort((a, b) => a.t - b.t);
+    save();
+  }
+  pending = null;
+  $('#reasons').hidden = true;
   render();
 }
 
@@ -132,7 +193,8 @@ function render() {
     let label;
     if (e.type === 'point') {
       e.side === 'A' ? a++ : b++;
-      label = `Punto ${names[e.side]} · ${a}-${b}`;
+      const r = REASONS.find((x) => x.id === e.how);
+      label = `Punto ${names[e.side]} · ${a}-${b}${r ? ` · ${r.own === false ? `${r.label} de ${e.side === 'A' ? 'B' : 'A'}` : r.label}` : ''}`;
     } else if (e.type === 'start') {
       label = 'Inicio de punto';
     } else {
@@ -145,6 +207,10 @@ function render() {
   $('#list').innerHTML = rows.reverse().join('') || '<li class="muted">Sin etiquetas todavía.</li>';
   $('#score').innerHTML = `Set ${set}: <span class="a">A ${a}</span> – <span class="b">${b} B</span>`;
   $('#sides').textContent = sets.length ? `Sets anteriores: ${sets.join(', ')}` : 'Recuerda: al cambiar de campo entre sets, A sigue siendo el mismo lado del vídeo.';
+  const first = state.firstServe?.[set] ?? null;
+  document.querySelectorAll('[data-serve]').forEach((b) => b.classList.toggle('sel', b.dataset.serve === first));
+  const now = serverAt(video.currentTime || 0).server;
+  $('#serveInfo').textContent = first ? `Ahora saca ${now ?? '?'}` : 'Elígelo para que solo salgan los motivos posibles (ace del que saca…).';
 }
 
 $('#file').addEventListener('change', (ev) => {
@@ -179,8 +245,18 @@ document.querySelectorAll('[data-seek]').forEach((b) => b.addEventListener('clic
   video.currentTime = Math.max(0, video.currentTime + Number(b.dataset.seek));
 }));
 $('#bStart').addEventListener('click', () => add('start'));
-$('#bA').addEventListener('click', () => add('point', 'A'));
-$('#bB').addEventListener('click', () => add('point', 'B'));
+$('#bA').addEventListener('click', () => askReason('A'));
+$('#bB').addEventListener('click', () => askReason('B'));
+$('#reasonButtons').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-how]');
+  if (b) chooseReason(b.dataset.how);
+});
+document.querySelectorAll('[data-serve]').forEach((b) => b.addEventListener('click', () => {
+  const { set } = serverAt(video.currentTime || 0);
+  state.firstServe = { ...(state.firstServe || {}), [set]: b.dataset.serve };
+  save();
+  render();
+}));
 $('#bSet').addEventListener('click', () => add('set'));
 $('#bUndo').addEventListener('click', () => {
   // Deshace la última etiqueta añadida en el tiempo más cercano al actual.
@@ -210,10 +286,16 @@ $('#clear').addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   const k = e.key.toLowerCase();
+  if (pending) {
+    const btns = [...document.querySelectorAll('#reasonButtons [data-how]')].filter((b) => b.dataset.how);
+    if (/^[1-9]$/.test(k) && btns[Number(k) - 1]) chooseReason(btns[Number(k) - 1].dataset.how);
+    else if (k === 'escape') chooseReason('');
+    return;
+  }
   if (k === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
   else if (k === 's') add('start');
-  else if (k === 'a') add('point', 'A');
-  else if (k === 'd') add('point', 'B');
+  else if (k === 'a') askReason('A');
+  else if (k === 'd') askReason('B');
   else if (k === 'f') add('set');
   else if (k === 'z') $('#bUndo').click();
   else if (k === 'arrowleft') video.currentTime -= 1;
@@ -221,6 +303,8 @@ document.addEventListener('keydown', (e) => {
   else if (k === ',') video.currentTime -= 1 / 30;
   else if (k === '.') video.currentTime += 1 / 30;
 });
+video.addEventListener('seeked', render);
+video.addEventListener('pause', render);
 render();
 </script>
 </body>
