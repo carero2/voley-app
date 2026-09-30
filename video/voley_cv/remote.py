@@ -3,20 +3,27 @@
 from __future__ import annotations
 
 import base64
+import re
 import shutil
 import urllib.request
 from pathlib import Path
 
+LOGIN_HOSTS = ("login.microsoftonline.com", "login.live.com")
+
 
 def onedrive_candidates(link: str) -> list[str]:
     """Direcciones de descarga directa posibles para un enlace compartido de OneDrive.
-    1) API de «shares» (OneDrive personal, enlaces 1drv.ms / onedrive.live.com).
-    2) El propio enlace con download=1 (OneDrive de empresa/SharePoint y algunos personales)."""
+    - OneDrive de empresa/universidad (…-my.sharepoint.com/:v:/g/personal/usuario/CODIGO):
+      …/personal/usuario/_layouts/15/download.aspx?share=CODIGO, y el enlace con download=1.
+    - OneDrive personal (1drv.ms / onedrive.live.com): API de «shares» y el enlace con download=1."""
     link = link.strip()
-    token = base64.b64encode(link.encode()).decode().rstrip("=").replace("/", "_").replace("+", "-")
-    api = f"https://api.onedrive.com/v1.0/shares/u!{token}/root/content"
     direct = link + ("&" if "?" in link else "?") + "download=1"
-    return [api, direct]
+    m = re.match(r"https://([^/]+\.sharepoint\.com)/:\w:/[gr]/personal/([^/]+)/([^/?#]+)", link)
+    if m:
+        host, user, code = m.groups()
+        return [f"https://{host}/personal/{user}/_layouts/15/download.aspx?share={code}", direct]
+    token = base64.b64encode(link.encode()).decode().rstrip("=").replace("/", "_").replace("+", "-")
+    return [f"https://api.onedrive.com/v1.0/shares/u!{token}/root/content", direct]
 
 
 def download(link: str, dest, chunk=8 << 20, progress=True) -> Path:
@@ -26,13 +33,19 @@ def download(link: str, dest, chunk=8 << 20, progress=True) -> Path:
         print(f"Ya descargado: {dest} ({dest.stat().st_size / 1e9:.2f} GB)")
         return dest
     errors = []
+    login_required = False
     for url in onedrive_candidates(link):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=60) as r:
                 ctype = r.headers.get("Content-Type", "")
                 if "text/html" in ctype:
-                    errors.append(f"{url[:60]}…: devuelve una página web, no el archivo")
+                    page = r.read(200_000).decode("utf-8", "ignore")
+                    if any(h in r.geturl() or h in page for h in LOGIN_HOSTS):
+                        login_required = True
+                        errors.append(f"{url[:60]}…: pide iniciar sesión")
+                    else:
+                        errors.append(f"{url[:60]}…: devuelve una página web, no el archivo")
                     continue
                 total = int(r.headers.get("Content-Length") or 0)
                 tmp = dest.with_suffix(dest.suffix + ".part")
@@ -57,6 +70,12 @@ def download(link: str, dest, chunk=8 << 20, progress=True) -> Path:
                 return dest
         except Exception as e:  # se prueba la siguiente forma
             errors.append(f"{url[:60]}…: {e}")
+    if login_required:
+        raise RuntimeError(
+            "El enlace pide iniciar sesión: está compartido solo con personas de tu organización (o tu cuenta "
+            "no permite enlaces para «cualquier persona»). En OneDrive → Compartir → Configuración del vínculo, "
+            "elige «Cualquier persona»; si no aparece, tu universidad no lo permite y hay que usar otra vía.\n"
+            + "\n".join(errors))
     raise RuntimeError(
         "No se pudo descargar el vídeo de OneDrive. Comprueba que el enlace está compartido como "
         "«Cualquier persona con el vínculo puede ver».\n" + "\n".join(errors))
