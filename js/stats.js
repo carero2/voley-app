@@ -98,6 +98,17 @@ export function teamSummary(events) {
   return s;
 }
 
+// Modo sencillo: cuántos puntos gana cada equipo por cada motivo (ace, ataque, bloqueo, errores del otro).
+export function pointReasons(events) {
+  const out = { us: {}, them: {}, total: 0 };
+  for (const e of events) {
+    if (e.skill !== 'cierre' || !e.how || !e.point) continue;
+    out[e.point][e.how] = (out[e.point][e.how] || 0) + 1;
+    out.total++;
+  }
+  return out;
+}
+
 // Puntos jugados agrupados por rotación: side-out (recibiendo) y break (sacando).
 export function rotationStats(events) {
   const rows = new Map([1, 2, 3, 4, 5, 6].map((r) => [r, { rot: r, recv: 0, sideOut: 0, serve: 0, breaks: 0, won: 0, lost: 0 }]));

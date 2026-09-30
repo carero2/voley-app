@@ -1,6 +1,8 @@
 import { getData, sortedMatches, playerById, setsSummary } from '../store.js';
-import { POSITIONS, positionById, TOUCH_LABEL, skillById, activeResults } from '../actions.js';
-import { filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, freeStats, pct } from '../stats.js';
+import { POSITIONS, POINT_REASONS, positionById, TOUCH_LABEL, skillById, activeResults } from '../actions.js';
+import {
+  filterEvents, countsBy, metrics, teamSummary, rotationStats, zoneStats, rivalStats, freeStats, pointReasons, pct,
+} from '../stats.js';
 import { activePlayers, rivalPlayerById } from '../store.js';
 import { html, raw, openSheet, formatDate } from '../ui.js';
 import { help } from '../help.js';
@@ -101,6 +103,7 @@ function playersTab(events) {
       ${kpi('Puntos ganados', team.won, `${team.ownPoints} propios · ${team.rivalErrors} errores rival`, 'ganados')}
       ${kpi('Puntos cedidos', team.lost, `${team.ownErrors} errores propios · ${team.rivalPoints} del rival`, 'perdidos')}
     </section>
+    ${reasonsCard(events)}
 
     <section class="card">
       <h2>Puntos por jugador</h2>
@@ -117,6 +120,32 @@ function playersTab(events) {
       ${legend()}
     </section>
   `;
+}
+
+// Modo sencillo: de dónde salen los puntos a favor y en contra.
+function reasonsCard(events) {
+  const r = pointReasons(events);
+  if (!r.total) return '';
+  const rows = POINT_REASONS.map((x) => ({ ...x, fav: r.us[x.id] || 0, con: r.them[x.id] || 0 }));
+  const favTotal = rows.reduce((a, x) => a + x.fav, 0);
+  const conTotal = rows.reduce((a, x) => a + x.con, 0);
+  return html`
+    <section class="card">
+      <h2>Cómo se ganan y se pierden los puntos</h2>
+      <p class="small muted">A favor: puntos nuestros (ace, ataque o bloqueo propios, o error del rival). En contra: puntos del rival (sus aces, ataques o bloqueos, o errores nuestros).</p>
+      <table class="stats-table">
+        <thead><tr><th></th><th>A favor</th><th>En contra</th></tr></thead>
+        <tbody>
+          ${rows.map((x) => html`
+            <tr>
+              <td class="left">${x.label}</td>
+              <td>${x.fav}${favTotal ? html` <span class="muted small">${Math.round((100 * x.fav) / favTotal)}%</span>` : ''}</td>
+              <td>${x.con}${conTotal ? html` <span class="muted small">${Math.round((100 * x.con) / conTotal)}%</span>` : ''}</td>
+            </tr>`)}
+          <tr><td><b>Total</b></td><td><b>${favTotal}</b></td><td><b>${conTotal}</b></td></tr>
+        </tbody>
+      </table>
+    </section>`;
 }
 
 function detailText(m) {

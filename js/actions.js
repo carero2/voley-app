@@ -82,6 +82,35 @@ export const TEAM_EVENTS = {
 
 const TEAM_SKILLS = ['rival', 'equipo', 'cierre'];
 
+// Modo sencillo: al cerrar cada punto solo se dice qué equipo lo gana y cómo.
+// `own`: la acción es del equipo que gana el punto (ace, ataque, bloqueo); si no, es un error del otro equipo.
+export const POINT_REASONS = [
+  { id: 'ace', label: 'Ace', own: true },
+  { id: 'ataque', label: 'Ataque', own: true },
+  { id: 'bloqueo', label: 'Bloqueo', own: true },
+  { id: 'error_saque', label: 'Error de saque', own: false },
+  { id: 'error_ataque', label: 'Error de ataque', own: false },
+  { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false },
+  { id: 'error_otro', label: 'Otro error', hint: 'red, invasión, rotación…', own: false },
+];
+export const reasonById = (id) => POINT_REASONS.find((r) => r.id === id);
+
+// Texto del botón según quién gana el punto: «Ataque rival», «Error de saque propio»…
+export function reasonLabel(winner, id) {
+  const r = reasonById(id);
+  if (!r) return id;
+  if (r.own) return winner === 'us' ? r.label : `${r.label} rival`;
+  return `${r.label} ${winner === 'us' ? 'rival' : 'propio'}`;
+}
+
+// Origen del punto en los términos de las estadísticas de equipo.
+export function reasonCause(winner, id) {
+  const own = reasonById(id)?.own;
+  if (own === undefined) return null;
+  if (winner === 'us') return own ? 'own' : 'rivalError';
+  return own ? 'rivalPoint' : 'ownError';
+}
+
 // Toque en el que se produce una acción (según la fase del punto).
 export const TOUCH_LABEL = {
   reception: 'Recepción',
@@ -106,6 +135,7 @@ export function resultDef(skillId, resultId) {
 }
 
 export function describeEvent(ev) {
+  if (ev.skill === 'cierre' && ev.how) return `${resultDef(ev.skill, ev.result)?.label ?? ev.result} · ${reasonLabel(ev.point, ev.how)}`;
   if (TEAM_SKILLS.includes(ev.skill)) return resultDef(ev.skill, ev.result)?.label ?? ev.result;
   if (ev.skill === 'cambio') return 'Cambio';
   const skill = skillById(ev.skill);

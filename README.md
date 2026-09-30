@@ -24,6 +24,10 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Plantilla del rival opcional (se guarda por equipo) para anotar quién saca o ataca.
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
+- **Modo sencillo** (por defecto al crear un partido): en cada punto solo se pulsa qué equipo lo gana y cómo
+  (ace, ataque, bloqueo, error de saque, error de ataque, error de recepción/defensa u otro error del rival).
+  Lleva el marcador, el saque y la rotación, y en Estadísticas muestra cómo se ganan y se pierden los puntos y el
+  side-out/break por rotación (filtrable por set). La hora de cada punto queda guardada para sincronizar con el vídeo.
 - **Registro por voz** (modo alternativo al crear el partido, ver [docs/voz.md](docs/voz.md)):
   - Marcador y rotación en directo con botones (*Iniciar punto*, *Punto propio*, *Punto rival*, *Ace*, *Error de saque*).
   - El detalle de cada punto se dicta; el audio se transcribe en segundo plano con Groq (Whisper, gratis hasta ~8 h/día) y un analizador lo convierte en acciones, entendiendo nombres, dorsales y puestos («el punta», «la central delantera») según la rotación.

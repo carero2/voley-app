@@ -4,7 +4,9 @@ import {
   setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
   setMatchMode, setVoice, voiceKeyOf,
 } from '../store.js';
-import { SKILLS, TEAM_EVENTS, skillById, positionById, describeEvent, activeResults } from '../actions.js';
+import {
+  SKILLS, TEAM_EVENTS, POINT_REASONS, skillById, positionById, describeEvent, activeResults, reasonLabel, reasonCause,
+} from '../actions.js';
 import {
   SYSTEMS, buildSetup, setState, courtLayout, rotationOf, currentPhase, suggestedSetter, PHASES,
   formation, formationKind, isFront,
@@ -49,8 +51,9 @@ export function renderNewMatch(el) {
       <fieldset class="field">
         <span>Modo de registro</span>
         <div class="chips">
-          <label class="chip"><input type="radio" name="mode" value="toques" checked /><span>Toques (detallado)</span></label>
-          <label class="chip"><input type="radio" name="mode" value="voz" /><span>Voz (rápido)</span></label>
+          <label class="chip"><input type="radio" name="mode" value="sencillo" checked /><span>Sencillo (punto y motivo)</span></label>
+          <label class="chip"><input type="radio" name="mode" value="toques" /><span>Toques (detallado)</span></label>
+          <label class="chip"><input type="radio" name="mode" value="voz" /><span>Voz</span></label>
         </div>
       </fieldset>
       <fieldset class="field">
@@ -126,6 +129,7 @@ export function renderMatch(el, { id }) {
   const st = setState(match, match.currentSet);
   if (!st.setup || ui.editLineup) return renderLineup(el, match, rerender);
   if (match.mode === 'voz') return renderVoiceLive(el, match, st, rerender);
+  if (match.mode === 'sencillo') return renderSimpleLive(el, match, st, rerender);
   return renderLive(el, match, st, rerender);
 }
 
@@ -829,6 +833,118 @@ function renderVoiceLive(el, match, st, rerender) {
   el.querySelector('#menu').addEventListener('click', () => openMatchMenu(match, st, rerender));
 }
 
+// ---------- Modo sencillo: qué equipo gana el punto y cómo ----------
+
+function renderSimpleLive(el, match, st, rerender) {
+  clearInterval(recTimer);
+  unsubVoice?.();
+  const teamName = getData().team.name;
+  const winner = setWinner(match, match.currentSet);
+  const { sets, won, lost } = setsSummary(match);
+  const rot = rotationOf(st);
+  const layout = courtLayout(st);
+  const server = st.serving === 'us' ? playerById(layout[0].playerId) : null;
+  // Últimos puntos del set con el marcador tras cada uno.
+  let us = 0;
+  let them = 0;
+  const points = match.events
+    .filter((e) => e.set === match.currentSet && e.point)
+    .map((e) => {
+      if (e.point === 'us') us++; else them++;
+      return { e, score: `${us}-${them}` };
+    })
+    .slice(-8)
+    .reverse();
+  const column = (team) => POINT_REASONS.map((r) => html`
+    <button class="btn ${team === 'us' ? 'tone-good' : 'tone-error'}" data-point="${team}" data-how="${r.id}">
+      ${reasonLabel(team, r.id)}${r.hint ? html`<span class="small muted"> (${r.hint})</span>` : ''}
+    </button>`);
+
+  el.innerHTML = html`
+    <header class="page-head with-back live-head">
+      <a class="back" href="#/" aria-label="Volver">‹</a>
+      <h1>vs ${match.opponent}</h1>
+      <button class="btn btn-ghost" id="menu" aria-label="Opciones">⋯</button>
+    </header>
+
+    <section class="scoreboard">
+      <div class="sb-team">
+        <span class="sb-name">${st.serving === 'us' ? '🏐 ' : ''}${teamName}</span>
+        <span class="sb-score">${st.us}</span>
+      </div>
+      <div class="sb-mid">
+        <span class="sb-set">Set ${match.currentSet}</span>
+        <span class="sb-sets">${won} - ${lost}</span>
+        <span class="sb-rot">R${rot}</span>
+      </div>
+      <div class="sb-team">
+        <span class="sb-name">${st.serving === 'them' ? '🏐 ' : ''}${match.opponent}</span>
+        <span class="sb-score">${st.them}</span>
+      </div>
+      ${sets.length ? html`<span class="sb-prev">${sets.map((x) => `${x.us}-${x.them}`).join(' · ')}</span>` : ''}
+    </section>
+
+    ${winner ? html`
+      <div class="banner ${winner === 'us' ? 'banner-good' : 'banner-bad'}">
+        <span>${winner === 'us' ? '¡Set ganado!' : 'Set perdido'} (${st.us}-${st.them})</span>
+        <button class="btn btn-primary" id="close-set">Cerrar set</button>
+      </div>` : ''}
+
+    <p class="small muted center">${st.serving === 'us'
+      ? `Saca ${teamName}${server ? ` · ${server.number} ${server.name}` : ''}`
+      : `Saca ${match.opponent}`} · Rotación R${rot}</p>
+
+    <section class="simple-grid">
+      <div class="simple-col">
+        <h2>Punto ${teamName}</h2>
+        ${column('us')}
+      </div>
+      <div class="simple-col">
+        <h2>Punto ${match.opponent}</h2>
+        ${column('them')}
+      </div>
+    </section>
+
+    <div class="shortcuts">
+      <button class="btn" id="undo" ${match.events.length || match.currentSet > 1 ? '' : 'disabled'}>↶ Deshacer</button>
+      <a class="btn" href="#/estadisticas?m=${match.id}">Estadísticas</a>
+    </div>
+
+    <section class="log">
+      <h2>Últimos puntos</h2>
+      ${points.length === 0 ? html`<p class="muted small">Pulsa el motivo en la columna del equipo que gana cada punto. El marcador, el saque y la rotación se actualizan solos.</p>` : ''}
+      <ol class="log-list">
+        ${points.map(({ e, score }) => html`
+          <li class="log-item">
+            <span class="score-tag ${e.point === 'us' ? 'tone-good' : 'tone-error'}">${score}</span>
+            <span class="grow small">${e.how ? reasonLabel(e.point, e.how) : describeEvent(e)}</span>
+            <span class="muted small">R${e.rot ?? '?'}</span>
+          </li>`)}
+      </ol>
+    </section>
+  `;
+
+  el.querySelectorAll('[data-point]').forEach((b) => b.addEventListener('click', () => {
+    const team = b.dataset.point;
+    const def = team === 'us' ? TEAM_EVENTS.rallyUs : TEAM_EVENTS.rallyThem;
+    addEvent(match.id, { skill: def.skill, result: def.result, how: b.dataset.how, cause: reasonCause(team, b.dataset.how) });
+    vibrate();
+    rerender();
+  }));
+  el.querySelector('#undo').addEventListener('click', () => {
+    const undone = undoLastEvent(match.id);
+    if (undone?.type === 'event') toast(`Deshecho: ${describeEvent(undone.event)}`);
+    else if (undone?.type === 'set') toast(`Set ${match.currentSet} reabierto`);
+    rerender();
+  });
+  el.querySelector('#close-set')?.addEventListener('click', () => {
+    const status = closeSet(match.id);
+    toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
+    rerender();
+  });
+  el.querySelector('#menu').addEventListener('click', () => openMatchMenu(match, st, rerender));
+}
+
 const VOICE_STATUS = {
   recording: 'Grabando',
   recorded: 'En cola',
@@ -917,9 +1033,15 @@ function openMatchMenu(match, st, rerender) {
       <button class="btn btn-block" id="m-sub" ${rallyStarted ? 'disabled' : ''}>Cambio de jugador</button>
       <button class="btn btn-block" id="m-lineup">Editar alineación${setStarted ? ' del set' : ''}</button>
       <button class="btn btn-block" id="m-close-set">Cerrar set ${match.currentSet} ahora</button>
-      <button class="btn btn-block" id="m-mode">Modo de registro: ${match.mode === 'voz' ? 'Voz → cambiar a toques' : 'Toques → cambiar a voz'}</button>
+      <div class="field">
+        <span class="small muted">Modo de registro</span>
+        <div class="chips">
+          ${[['sencillo', 'Sencillo'], ['toques', 'Toques'], ['voz', 'Voz']].map(([id, label]) => html`
+            <button class="chip-btn ${(match.mode ?? 'toques') === id ? 'selected' : ''}" data-mode="${id}">${label}</button>`)}
+        </div>
+      </div>
       ${match.mode === 'voz' ? html`<a class="btn btn-block" href="#/partido/${match.id}/voz" data-close>Revisión de voz</a>` : ''}
-      ${match.mode === 'voz' ? '' : html`<button class="btn btn-block" id="m-recordset">Registrar colocaciones: ${match.recordSet === false ? 'No' : 'Sí'}</button>`}
+      ${match.mode !== 'toques' && match.mode ? '' : html`<button class="btn btn-block" id="m-recordset">Registrar colocaciones: ${match.recordSet === false ? 'No' : 'Sí'}</button>`}
       <button class="btn btn-block" id="m-roster">Cambiar convocados</button>
       <button class="btn btn-block" id="m-rivals">Plantilla de ${match.opponent}</button>
       <a class="btn btn-block" href="#/estadisticas?m=${match.id}" data-close>Ver estadísticas</a>
@@ -947,12 +1069,12 @@ function openMatchMenu(match, st, rerender) {
     clearSelection();
     rerender();
   });
-  sheet.root.querySelector('#m-mode').addEventListener('click', () => {
-    setMatchMode(match.id, match.mode === 'voz' ? 'toques' : 'voz');
+  sheet.root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+    setMatchMode(match.id, b.dataset.mode);
     sheet.close();
     clearSelection();
     rerender();
-  });
+  }));
   sheet.root.querySelector('#m-recordset')?.addEventListener('click', () => {
     setRecordSet(match.id, match.recordSet === false);
     sheet.close();

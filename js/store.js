@@ -273,7 +273,7 @@ export function deleteMatch(id) {
 
 // Registra una acción con su contexto (punto del set, rotación, quién sacaba y zonas).
 export function addEvent(matchId, {
-  playerId = null, skill, result, zoneTo = null, rivalZone = null, rivalPlayerId = null, phase,
+  playerId = null, skill, result, zoneTo = null, rivalZone = null, rivalPlayerId = null, phase, how = null, cause = null,
 }) {
   const match = matchById(matchId);
   const def = resultDef(skill, result);
@@ -295,6 +295,9 @@ export function addEvent(matchId, {
     result,
     point: def?.point ?? null,
   };
+  // Modo sencillo: cómo se ganó el punto (ace, ataque, error de recepción…).
+  if (how) ev.how = how;
+  if (cause) ev.cause = cause;
   match.events.push(ev);
   persist();
   return ev;

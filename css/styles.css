@@ -604,3 +604,12 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
   body.is-live .half-label { font-size: .68rem; }
   body.is-live .result-row .skill-results .btn { min-height: 48px; font-size: .78rem; padding: 4px 2px; }
 }
+
+/* Modo sencillo: dos columnas de motivos (punto propio / punto rival). */
+.simple-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 12px; }
+.simple-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.simple-col h2 { font-size: .9rem; margin: 0 0 2px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.simple-col .btn { flex-direction: column; justify-content: center; min-height: 52px; white-space: normal; line-height: 1.15; padding: 8px 6px; font-size: .92rem; }
+.simple-col .btn .small { display: block; font-size: .72rem; }
+.score-tag { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3.2em; text-align: center; border-radius: 6px; padding: 2px 6px; }
+.stats-table td.left { text-align: left; white-space: normal; }
