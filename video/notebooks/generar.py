@@ -187,6 +187,7 @@ su ruta en **PESOS** para comparar con el modelo sin entrenar.""")
 code("""#@title 7. Reentrenar
 ENLACE_ROBOFLOW = ''  #@param {type:"string"}
 EPOCAS = 40  #@param {type:"integer"}
+MODELO = 'small'  #@param ["nano", "small", "medium"]
 !pip install -q "rfdetr[train,loggers]"
 from voley_cv.train import fetch_dataset, describe_dataset, train
 DATASET = fetch_dataset(ENLACE_ROBOFLOW, '/content/dataset')
