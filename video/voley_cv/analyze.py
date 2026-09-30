@@ -133,11 +133,14 @@ def _track_ball(frames, dt, ppm, static=frozenset()):
             if d[j] <= max_step * gap + 0.02 * ppm * 9:
                 chosen = j
         if chosen is None:
-            j = int(np.argmax(confs))
-            if confs[j] >= BALL_START_CONF:
-                chosen = j
-                vel = np.zeros(2)
-                last_i = None
+            # Balón perdido: solo se empieza a seguir algo nuevo si se mueve como un balón en los
+            # fotogramas siguientes (una cabeza o una rodillera que aparece un instante no vale).
+            for j in np.argsort(-confs):
+                if confs[j] >= BALL_START_CONF and _moves_like_ball(frames, i, centers[j], static, max_step, ppm):
+                    chosen = int(j)
+                    vel = np.zeros(2)
+                    last_i = None
+                    break
         if chosen is None:
             continue
         p = centers[chosen]
@@ -159,6 +162,25 @@ def _track_ball(frames, dt, ppm, static=frozenset()):
                     p = pa + (pb - pa) * (k - a) / gap
                     track[k] = {"u": round(float(p[0]), 1), "v": round(float(p[1]), 1), "conf": 0.0, "src": "interp"}
     return track
+
+
+def _moves_like_ball(frames, i, p, static, max_step, ppm, window_s=0.1, min_move_m=0.3):
+    """¿La detección `p` del fotograma `i` continúa en los siguientes como un balón en vuelo?
+    Hace falta verla en al menos 2 de los próximos fotogramas (≈0,1 s) y que se haya movido ≥ 30 cm."""
+    window = max(3, int(round(window_s / (max_step / (BALL_MAX_SPEED * ppm)))))
+    pos, last_k, hits = np.asarray(p, dtype=float), 0, 0
+    for k in range(1, window + 1):
+        if i + k >= len(frames):
+            break
+        cands = [b for b in frames[i + k]["balls"] if _cell(b) not in static]
+        if not cands:
+            continue
+        c = np.asarray([((b[0] + b[2]) / 2, (b[1] + b[3]) / 2) for b in cands])
+        d = np.linalg.norm(c - pos, axis=1)
+        j = int(np.argmin(d))
+        if d[j] <= max_step * (k - last_k) + 0.02 * ppm * 9:
+            pos, last_k, hits = c[j], k, hits + 1
+    return hits >= 2 and float(np.linalg.norm(pos - np.asarray(p))) >= min_move_m * ppm
 
 
 def _ball_sides(ball, court: Court):

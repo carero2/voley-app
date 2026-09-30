@@ -66,16 +66,21 @@ def test_touches_and_crossing():
             p = hit_b + (start - hit_b) * s + np.array([0, -200 * 4 * s * (1 - s)])
         else:
             p = None
+        if 30 <= i <= 33:
+            p = None  # el balón queda tapado un momento…
         balls = [[p[0] - 6, p[1] - 6, p[0] + 6, p[1] + 6, 0.8]] if p is not None else []
+        if i == 31:
+            balls.append([1500, 300, 1512, 312, 0.99])  # …y aparece un instante algo parecido (una cabeza)
         balls.append([100, 900, 112, 912, 0.95])  # falso balón quieto (un cono), más seguro que el real
         frames.append({"f": i, "persons": [pa, pb], "balls": balls})
     header = {"fps": fps, "stride": 1, "width": 1920, "height": 1080}
     res = analyze(header, frames, court, use_tracker=False)
     m = res["metrics"]
     in_play = res["frames"][: n1 + n2]
-    assert sum(1 for fr in in_play if fr["ball"]) / len(in_play) > 0.9
+    assert sum(1 for fr in in_play if fr["ball"]) / len(in_play) > 0.85
     assert m["ball_static_spots"] >= 1
     assert all(fr["ball"] is None or fr["ball"]["u"] > 200 for fr in res["frames"]), "se enganchó al cono"
+    assert all(fr["ball"] is None or fr["ball"]["u"] < 1450 for fr in res["frames"][28:40]), "saltó a la cabeza"
     assert m["players_mean"] == {"A": 1.0, "B": 1.0}
     assert m["net_crossings"] == 2, res["crossings"]
     touch_frames = [t["f"] for t in res["touches"]]
