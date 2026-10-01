@@ -86,12 +86,13 @@ export function mergeInfo(local, remote, localDirty) {
 
 // ---------- Documentos de Firestore (API REST) ----------
 
-export function toDoc({ data, ver, dev, deleted = false }) {
+export function toDoc({ data, ver, dev, by, deleted = false }) {
   return {
     fields: {
       data: { stringValue: data == null ? '' : JSON.stringify(data) },
       ver: { integerValue: String(ver) },
       dev: { stringValue: dev || '' },
+      by: { stringValue: by || '' },
       deleted: { booleanValue: Boolean(deleted) },
     },
   };
@@ -104,6 +105,7 @@ export function fromDoc(doc) {
     id: doc.name.split('/').pop(),
     ver: Number(f.ver?.integerValue || 0),
     dev: f.dev?.stringValue || '',
+    by: f.by?.stringValue || '',
     deleted: Boolean(f.deleted?.booleanValue),
     data: raw ? JSON.parse(raw) : null,
     updateTime: doc.updateTime,

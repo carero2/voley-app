@@ -45,7 +45,7 @@ function matchCard(m) {
     <a class="card match-card" href="#/partido/${m.id}">
       <div class="grow">
         <div class="match-opp">vs ${m.opponent}</div>
-        <div class="muted small">${formatDate(m.date)}${m.place ? ` · ${m.place}` : ''}</div>
+        <div class="muted small">${formatDate(m.date)}${m.place ? ` · ${m.place}` : ''}${m.by ? ` · anota ${m.by}` : ''}</div>
         ${partials.length ? html`<div class="set-line">${partials.map((s) => html`<span class="${s.live ? 'cur' : s.us > s.them ? 'w' : 'l'}">${s.us}-${s.them}</span>`)}</div>` : ''}
       </div>
       <div class="match-res">

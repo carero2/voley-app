@@ -697,6 +697,8 @@ button.settings-row:active, a.settings-row:active { background: var(--surface-2)
 .s-actions { display: flex; gap: 6px; flex: none; }
 .s-actions .btn-small { min-height: 34px; padding: 0 10px; font-size: .85rem; }
 .settings-note { font-size: .82rem; color: var(--text-2); margin: 6px 4px 0; }
+.settings-group + .settings-group { margin-top: 16px; }
+.sheet-group { margin: 8px 0 12px; box-shadow: none; }
 
 /* Barras enfrentadas (cómo se ganan los puntos) */
 .diverging { display: flex; flex-direction: column; gap: 8px; }

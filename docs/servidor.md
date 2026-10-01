@@ -52,14 +52,15 @@ service cloud.firestore {
 
    (La «apiKey» de Firebase no es secreta: identifica el proyecto. Lo que protege los datos es la contraseña
    del club y las reglas del paso 3.)
-4. En la app: barra del club → **☁ Compartir con el equipo (servidor)** (o pestaña Datos → Servidor del club).
-   Pega el **ID del proyecto**, la **clave web** y elige una **contraseña del club** (mínimo 6 caracteres).
+4. En la app: pestaña **Ajustes → Servidor del club**. Pega el **ID del proyecto**, la **clave web**, elige una
+   **contraseña del club** (mínimo 6 caracteres) y pon **tu nombre**.
    **Conectar**: los jugadores, rivales y partidos de ese club se suben al servidor.
 
 ## 5. Invitar al equipo
 
 En la misma ventana, **Compartir enlace de invitación**: se abre el menú de compartir del móvil (WhatsApp…).
-Quien abre el enlace pulsa **Unirme** y ya tiene el club con sus jugadores y partidos.
+Quien abre el enlace escribe **su nombre**, pulsa **Unirme** y ya tiene el club con sus jugadores y partidos. Su
+nombre queda guardado en cada partido y punto que registre (en Ajustes → Servidor del club ves quién ha registrado).
 
 El enlace lleva la contraseña. Si se filtra, cámbiala: **Cambiar configuración** con una contraseña nueva crea el
 club de nuevo en el servidor con los datos de tu dispositivo, y hay que mandar un enlace nuevo al equipo.

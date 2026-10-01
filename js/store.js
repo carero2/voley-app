@@ -141,6 +141,15 @@ export function deleteClub(id) {
 
 export const clubById = (id) => root.clubs.find((c) => c.id === id);
 
+// Quién usa la app en este dispositivo (nombre puesto al unirse al servidor del club). Lo da sync.js.
+let authorFn = () => null;
+export function setAuthor(fn) {
+  authorFn = fn;
+}
+const author = () => {
+  try { return authorFn() || null; } catch { return null; }
+};
+
 // Guarda tras cambios hechos desde fuera (sincronización).
 export function saveAll() {
   persist();
@@ -242,9 +251,11 @@ export const sortedMatches = () =>
   [...data.matches].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
 
 export function createMatch({ opponent, date, place, bestOf, roster, mode = 'toques' }) {
+  const by = author();
   const match = {
     id: uid(),
     createdAt: Date.now(),
+    ...(by ? { by } : {}),
     opponent: opponent.trim() || 'Rival',
     date,
     place: place.trim(),
@@ -311,6 +322,8 @@ export function addEvent(matchId, {
   };
   // Modo sencillo: cómo se ganó el punto (ace, ataque, error de recepción…).
   if (how) ev.how = how;
+  const by = author();
+  if (by) ev.by = by;
   if (cause) ev.cause = cause;
   // Rotación sin contar (se perdió la cuenta): el punto no entra en las estadísticas por rotación.
   if (match.ignoreRot && ev.point) ev.rotOff = true;

@@ -9,9 +9,8 @@ import { html, download, toast, today, openSheet } from '../ui.js';
 import { voiceSettings, saveVoiceSettings, testConnection } from '../voice/transcribe.js';
 import { audioUsage } from '../voice/db.js';
 import { kickQueue } from '../voice/queue.js';
-import { syncConfig, syncStatus, isAdmin } from '../sync.js';
+import { syncConfig, syncStatus, isAdmin, userName } from '../sync.js';
 import { openSyncSheet } from './sync-ui.js';
-import { openClubSheet, openClubForm } from './clubs.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const slug = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'club';
@@ -41,88 +40,96 @@ const TRANSFERS = [
   },
 ];
 
-export function renderData(el) {
+export function renderData(el, { query = {} } = {}) {
   const d = getData();
   const cfg = syncConfig(d.id);
   const st = syncStatus(d.id);
   const events = d.matches.reduce((n, m) => n + m.events.length, 0);
   const serverValue = !cfg ? 'Sin conectar'
-    : st.state === 'error' ? '⚠ Con problemas'
-      : st.state === 'pending' ? `${st.pending} sin subir` : `Conectado${isAdmin(d.id) ? ' · administras' : ''}`;
+    : !userName(d.id) ? 'Pon tu nombre'
+      : st.state === 'error' ? '⚠ Con problemas'
+        : st.state === 'pending' ? `${st.pending} sin subir` : 'Conectado';
+  const rerender = () => renderData(el);
 
   el.innerHTML = html`
     <header class="page-head"><h1>Ajustes</h1></header>
 
-    <h2 class="settings-title">Club</h2>
     <section class="settings-group">
-      <button class="settings-row" id="s-club">
-        <span class="s-icon" aria-hidden="true">🏛</span>
-        <span class="grow"><b>${d.name}</b><span class="s-sub">${d.team.name} · ${plural(activePlayers().length, 'jugador', 'jugadores')} · ${plural(d.matches.length, 'partido', 'partidos')}</span></span>
-        <span class="s-chev" aria-hidden="true">›</span>
-      </button>
       <button class="settings-row" id="s-server">
         <span class="s-icon" aria-hidden="true">☁</span>
-        <span class="grow">Servidor del club<span class="s-sub">${cfg ? 'Todo el equipo registra y ve los partidos' : 'Comparte el club con el equipo con una contraseña'}</span></span>
-        <span class="s-value ${st.state === 'error' ? 'bad' : ''}">${serverValue}</span>
+        <span class="grow">Servidor del club<span class="s-sub">${cfg ? `«${d.name}» · ${isAdmin(d.id) ? 'lo administras tú' : `entraste como ${userName(d.id) || 'miembro'}`}` : 'Compartir los partidos con el equipo'}</span></span>
+        <span class="s-value ${st.state === 'error' || (cfg && !userName(d.id)) ? 'bad' : ''}">${serverValue}</span>
         <span class="s-chev" aria-hidden="true">›</span>
       </button>
-      <button class="settings-row" id="s-clubs">
-        <span class="s-icon" aria-hidden="true">⇄</span>
-        <span class="grow">Cambiar de club<span class="s-sub">${plural(clubs().length, 'club', 'clubes')} en este dispositivo</span></span>
+      <button class="settings-row" id="s-transfer">
+        <span class="s-icon" aria-hidden="true">⇅</span>
+        <span class="grow">Importar y exportar<span class="s-sub">Copias, plantilla (Excel) y rivales</span></span>
+        <span class="s-chev" aria-hidden="true">›</span>
+      </button>
+      <button class="settings-row" id="s-voice">
+        <span class="s-icon" aria-hidden="true">🎙</span>
+        <span class="grow">Registro por voz<span class="s-sub">Clave de Groq para transcribir</span></span>
+        <span class="s-value">${voiceSettings().groqKey ? 'Activado' : 'Sin clave'}</span>
         <span class="s-chev" aria-hidden="true">›</span>
       </button>
     </section>
 
-    <h2 class="settings-title">Importar y exportar</h2>
     <section class="settings-group">
+      <div class="settings-row">
+        <span class="s-icon" aria-hidden="true">📱</span>
+        <span class="grow">Este dispositivo<span class="s-sub" id="s-usage">${plural(clubs().length, 'club', 'clubes')} · ${plural(events, 'acción', 'acciones')} en «${d.name}»</span></span>
+      </div>
+    </section>
+    <p class="settings-note">${cfg
+      ? 'Los partidos de este club se comparten con el equipo a través del servidor.'
+      : 'Los datos se guardan solo en este dispositivo: exporta una copia de vez en cuando o conecta el servidor del club.'}</p>
+  `;
+
+  el.querySelector('#s-server').addEventListener('click', () => openSyncSheet(rerender));
+  el.querySelector('#s-transfer').addEventListener('click', () => openTransferSheet(rerender));
+  el.querySelector('#s-voice').addEventListener('click', () => openVoiceSheet(rerender));
+  audioUsage().then(({ bytes, count }) => {
+    const info = el.querySelector('#s-usage');
+    if (info && count) info.textContent += ` · ${count} audios de voz (${(bytes / 1048576).toFixed(1)} MB)`;
+  }).catch(() => {});
+  if (query.servidor) {
+    history.replaceState(null, '', '#/datos');
+    openSyncSheet(rerender);
+  }
+}
+
+// ---------- Importar y exportar (hoja) ----------
+
+function openTransferSheet(onChange) {
+  const d = getData();
+  const sheet = openSheet(html`
+    <div class="sheet-title"><h2 class="grow">Importar y exportar</h2><button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button></div>
+    <div class="settings-group sheet-group">
       ${TRANSFERS.map((t) => html`
         <div class="settings-row">
           <span class="grow">${t.title}<span class="s-sub">${t.desc}</span></span>
           <span class="s-actions">
-            <button class="btn btn-small" data-export="${t.id}">Exportar</button>
-            <button class="btn btn-small" data-import="${t.id}">Importar</button>
+            <button class="btn btn-small" data-export="${t.id}" aria-label="Exportar ${t.title}">Exportar</button>
+            <button class="btn btn-small" data-import="${t.id}" aria-label="Importar ${t.title}">Importar</button>
           </span>
         </div>`)}
       <div class="settings-row">
-        <span class="grow">Acciones para Excel<span class="s-sub">Informe de todas las acciones (CSV). Es para analizar, no se puede importar</span></span>
+        <span class="grow">Acciones para Excel<span class="s-sub">Informe para analizar (CSV); no se importa</span></span>
         <span class="s-actions"><button class="btn btn-small" data-export="csv">Exportar</button></span>
       </div>
-    </section>
-    <p class="settings-note">${cfg
-      ? 'Lo que importes en este club se comparte con el equipo en la siguiente sincronización.'
-      : 'Los datos se guardan solo en este dispositivo: exporta una copia de vez en cuando o conecta el servidor del club.'}</p>
+    </div>
+    <p class="small muted">${syncConfig(d.id)
+      ? 'Lo que importes en este club se comparte con el equipo en la siguiente sincronización. Combinar nunca sobrescribe: solo añade lo que falte.'
+      : 'Combinar nunca sobrescribe: solo añade lo que falte.'}</p>
     <input type="file" id="file" hidden />
-
-    <h2 class="settings-title">Registro por voz</h2>
-    <section class="settings-group">
-      <button class="settings-row" id="s-voice">
-        <span class="s-icon" aria-hidden="true">🎙</span>
-        <span class="grow">Clave de Groq<span class="s-sub">Transcripción del dictado (gratis)</span></span>
-        <span class="s-value">${voiceSettings().groqKey ? 'Guardada' : 'Sin clave'}</span>
-        <span class="s-chev" aria-hidden="true">›</span>
-      </button>
-    </section>
-
-    <h2 class="settings-title">Este dispositivo</h2>
-    <section class="settings-group">
-      <div class="settings-row">
-        <span class="grow">Datos guardados<span class="s-sub" id="s-usage">${plural(clubs().length, 'club', 'clubes')} · ${plural(events, 'acción', 'acciones')} en «${d.name}»</span></span>
-      </div>
-    </section>
-  `;
-
-  el.querySelector('#s-club').addEventListener('click', () => openClubForm(d, refreshAll));
-  el.querySelector('#s-server').addEventListener('click', () => openSyncSheet(() => renderData(el)));
-  el.querySelector('#s-clubs').addEventListener('click', () => openClubSheet(refreshAll));
-  el.querySelector('#s-voice').addEventListener('click', () => openVoiceSheet(() => renderData(el)));
-
-  el.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => {
+  `.toString());
+  sheet.root.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.export === 'csv') download(`voley-acciones-${today()}.csv`, toCsv(d), 'text/csv;charset=utf-8');
     else TRANSFERS.find((t) => t.id === b.dataset.export).export(d);
   }));
-  const fileInput = el.querySelector('#file');
+  const fileInput = sheet.root.querySelector('#file');
   let kind = null;
-  el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => {
+  sheet.root.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => {
     kind = b.dataset.import;
     fileInput.accept = TRANSFERS.find((t) => t.id === kind).accept;
     fileInput.value = '';
@@ -138,13 +145,9 @@ export function renderData(el) {
       alert(`No se pudo leer el archivo: ${err.message}`);
       return;
     }
-    openImportSheet(kind, found, refreshAll);
+    sheet.close();
+    openImportSheet(kind, found, () => { refreshAll(); onChange?.(); });
   });
-
-  audioUsage().then(({ bytes, count }) => {
-    const info = el.querySelector('#s-usage');
-    if (info && count) info.textContent += ` · ${count} audios de voz (${(bytes / 1048576).toFixed(1)} MB)`;
-  }).catch(() => {});
 }
 
 // ---------- Importar ----------

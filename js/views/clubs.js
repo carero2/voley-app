@@ -1,7 +1,7 @@
 // Barra de club activo y gestión de clubes. Cada club tiene su equipo, jugadores, partidos y rivales.
 import { clubs, activeClub, switchClub, createClub, updateClub, deleteClub } from '../store.js';
 import { html, openSheet, toast } from '../ui.js';
-import { syncChip, openSyncSheet } from './sync-ui.js';
+import { syncChip } from './sync-ui.js';
 import { syncConfig, removeSyncConfig } from '../sync.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -25,7 +25,8 @@ export function renderClubBar(el, onChange) {
       </div>` : ''}
   `;
   el.querySelector('#club-switch').addEventListener('click', () => openClubSheet(onChange));
-  el.querySelector('#sync-chip')?.addEventListener('click', () => openSyncSheet(onChange));
+  // El servidor se gestiona en Ajustes: el aviso de la barra lleva allí.
+  el.querySelector('#sync-chip')?.addEventListener('click', () => { location.hash = '#/datos?servidor=1'; });
   el.querySelector('#demo-create')?.addEventListener('click', () => openClubForm(null, onChange));
 }
 
@@ -48,7 +49,6 @@ export function openClubSheet(onChange) {
     <div class="stack sheet-actions">
       <button class="btn btn-primary btn-block" id="new-club">＋ Nuevo club</button>
       <button class="btn btn-block" id="edit-club">Editar «${current.name}»</button>
-      <button class="btn btn-block" id="share-club">☁ ${syncConfig(current.id) ? 'Servidor del club' : 'Compartir con el equipo (servidor)'}</button>
       <button class="btn btn-block btn-danger" id="delete-club">Eliminar «${current.name}»</button>
     </div>
   `.toString());
@@ -61,7 +61,6 @@ export function openClubSheet(onChange) {
   }));
   sheet.root.querySelector('#new-club').addEventListener('click', () => { sheet.close(); openClubForm(null, onChange); });
   sheet.root.querySelector('#edit-club').addEventListener('click', () => { sheet.close(); openClubForm(current, onChange); });
-  sheet.root.querySelector('#share-club').addEventListener('click', () => { sheet.close(); openSyncSheet(onChange); });
   sheet.root.querySelector('#delete-club').addEventListener('click', () => {
     const n = current.matches.length;
     const shared = syncConfig(current.id);

@@ -2,7 +2,7 @@
 import { activeClub } from '../store.js';
 import {
   syncConfig, saveSyncConfig, removeSyncConfig, syncStatus, syncClub, inviteLink, joinClub, conflictsOf,
-  resolveConflict, isAdmin, changePassword,
+  resolveConflict, isAdmin, changePassword, userName, setUserName, contributors,
 } from '../sync.js';
 import { html, openSheet, toast, formatDate } from '../ui.js';
 
@@ -39,6 +39,17 @@ export function openSyncSheet(onChange) {
     </div>
     <p class="small muted">«${club.name}» está conectado: todos los que tengan la contraseña ven y registran sus partidos. Se sincroniza al abrir la app, al cerrar cada set y al volver la conexión.</p>
     <div id="sync-state">${statusText(club.id)}</div>
+    <div class="settings-group sheet-group">
+      <button class="settings-row" id="sync-name">
+        <span class="grow">Tu nombre<span class="s-sub">Queda guardado en lo que registras</span></span>
+        <span class="s-value ${userName(club.id) ? '' : 'bad'}">${userName(club.id) || 'Sin poner'}</span>
+        <span class="s-chev" aria-hidden="true">›</span>
+      </button>
+      ${isAdmin(club.id) && contributors(club).length ? html`
+        <div class="settings-row">
+          <span class="grow">Quién ha registrado<span class="s-sub">${contributors(club).map((c) => `${c.name} (${c.points} puntos)`).join(' · ')}</span></span>
+        </div>` : ''}
+    </div>
     ${conflicts ? html`<p class="small sync-error">⚠ ${conflicts} ${conflicts === 1 ? 'partido tiene' : 'partidos tienen'} dos versiones: elige cuál conservar en la lista de partidos.</p>` : ''}
     <div class="stack sheet-actions">
       <button class="btn btn-primary btn-block" id="sync-now">Sincronizar ahora</button>
@@ -66,6 +77,8 @@ export function openSyncSheet(onChange) {
         <input name="apiKey" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…" value="${cfg?.apiKey ?? ''}" /></label>
       <label class="field"><span>Contraseña del club</span>
         <input name="password" required minlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
+      <label class="field"><span>Tu nombre</span>
+        <input name="userName" required maxlength="40" autocomplete="name" placeholder="Ej.: Carlos (entrenador)" /></label>
       <p class="small muted">Con una contraseña nueva se crea el club en el servidor con los datos de este dispositivo. Con la de un club que ya existe, se juntan.</p>
       <div class="form-actions">
         <button type="button" class="btn" data-close>Cancelar</button>
@@ -81,11 +94,22 @@ export function openSyncSheet(onChange) {
   sheet.root.querySelector('#sync-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
-    await saveSyncConfig(club.id, { projectId: f.projectId.value, apiKey: f.apiKey.value, password: f.password.value });
+    await saveSyncConfig(club.id, {
+      projectId: f.projectId.value, apiKey: f.apiKey.value, password: f.password.value, userName: f.userName.value, role: 'admin',
+    });
     sheet.close();
     toast('Conectando…');
     const s = await syncClub(club.id);
     toast(s?.error ? `⚠ ${s.error}` : 'Club conectado y sincronizado');
+    onChange?.();
+  });
+  sheet.root.querySelector('#sync-name')?.addEventListener('click', () => {
+    const name = prompt('Tu nombre (se guarda en los partidos y puntos que registras):', userName(club.id));
+    if (name == null || !name.trim()) return;
+    setUserName(club.id, name);
+    sheet.close();
+    toast(`Nombre guardado: ${name.trim()}`);
+    openSyncSheet(onChange);
     onChange?.();
   });
   sheet.root.querySelector('#sync-now')?.addEventListener('click', async () => {
@@ -147,17 +171,25 @@ export function renderJoin(el, { query }) {
     <header class="page-head"><h1>Unirse al club</h1></header>
     <section class="card stack">
       <p>Te han invitado al club <b>${n || 'compartido'}</b>. Al unirte, sus jugadores y partidos se descargan en este dispositivo y lo que registres se compartirá con el equipo.</p>
-      <button class="btn btn-primary btn-block btn-lg" id="join">Unirme</button>
+      <form id="join-form" class="stack">
+        <label class="field"><span>Tu nombre</span>
+          <input name="userName" required maxlength="40" autocomplete="name" placeholder="Ej.: Laura" /></label>
+        <p class="small muted">Se guarda en cada partido y punto que registres, para saber quién anotó qué.</p>
+        <button class="btn btn-primary btn-block btn-lg" id="join" type="submit">Unirme</button>
+      </form>
       <p class="small muted" id="join-info"></p>
     </section>
   `;
-  el.querySelector('#join').addEventListener('click', async (e) => {
-    e.target.disabled = true;
+  el.querySelector('#join-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = el.querySelector('#join');
+    const who = e.target.userName.value.trim();
+    btn.disabled = true;
     el.querySelector('#join-info').textContent = 'Descargando el club…';
-    const r = await joinClub({ projectId: p, apiKey: k, password: c, name: n });
+    const r = await joinClub({ projectId: p, apiKey: k, password: c, name: n, userName: who });
     if (r.error) {
       el.querySelector('#join-info').textContent = `⚠ ${r.error}`;
-      e.target.disabled = false;
+      btn.disabled = false;
       return;
     }
     toast(r.existed ? `Ya estabas en «${r.club.name}»` : `Te has unido a «${r.club.name}»`);
@@ -179,7 +211,7 @@ export function conflictCards(onChange) {
         <p><b>⚠ vs ${mine.opponent}</b> (${formatDate(mine.date)}) se ha registrado en dos dispositivos con datos distintos. Elige cuál conservar (la otra se descarta en todos):</p>
         <div class="form-actions">
           <button class="btn" data-keep="local">La de este dispositivo (${points(mine)} puntos)</button>
-          <button class="btn" data-keep="remote">La del otro (${points(copy)} puntos)</button>
+          <button class="btn" data-keep="remote">La de ${copy.remote?.by || 'otro dispositivo'} (${points(copy)} puntos)</button>
         </div>
       </section>`;
   })}`;
