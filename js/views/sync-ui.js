@@ -2,7 +2,7 @@
 import { activeClub } from '../store.js';
 import {
   syncConfig, saveSyncConfig, removeSyncConfig, syncStatus, syncClub, inviteLink, joinClub, conflictsOf,
-  resolveConflict,
+  resolveConflict, isAdmin, changePassword,
 } from '../sync.js';
 import { html, openSheet, toast, formatDate } from '../ui.js';
 
@@ -28,11 +28,11 @@ function statusText(clubId) {
   return html`<p class="small">✓ Sincronizado${s.at ? ` a las ${hhmm(s.at)}` : ''}.</p>`;
 }
 
-export function openSyncSheet(onChange, { edit = false } = {}) {
+export function openSyncSheet(onChange) {
   const club = activeClub();
   const cfg = syncConfig(club.id);
   const conflicts = conflictsOf(club).length;
-  const sheet = openSheet((cfg && !edit ? html`
+  const sheet = openSheet((cfg ? html`
     <div class="sheet-title">
       <h2 class="grow">Servidor del club</h2>
       <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
@@ -42,9 +42,13 @@ export function openSyncSheet(onChange, { edit = false } = {}) {
     ${conflicts ? html`<p class="small sync-error">⚠ ${conflicts} ${conflicts === 1 ? 'partido tiene' : 'partidos tienen'} dos versiones: elige cuál conservar en la lista de partidos.</p>` : ''}
     <div class="stack sheet-actions">
       <button class="btn btn-primary btn-block" id="sync-now">Sincronizar ahora</button>
-      <button class="btn btn-block" id="sync-invite">Compartir enlace de invitación</button>
-      <p class="small muted">El enlace lleva la contraseña: quien lo abra entra directamente en el club. Compártelo solo con el equipo.</p>
-      <button class="btn btn-block" id="sync-edit">Cambiar configuración</button>
+      ${isAdmin(club.id) ? html`
+        <button class="btn btn-block" id="sync-invite">Compartir enlace de invitación</button>
+        <p class="small muted">El enlace lleva la contraseña: quien lo abra entra directamente en el club. Compártelo solo con el equipo.</p>
+        <button class="btn btn-block" id="sync-password">Cambiar la contraseña del club</button>
+        <p class="small muted">Tú administras el servidor de este club: solo desde aquí se cambia la contraseña y se pueden borrar partidos compartidos.</p>
+      ` : html`
+        <p class="small muted">Te uniste con un enlace de invitación. La contraseña y las invitaciones las gestiona quien administra el club.</p>`}
       <button class="btn btn-block btn-danger" id="sync-off">Desconectar este dispositivo</button>
     </div>
   ` : html`
@@ -61,7 +65,7 @@ export function openSyncSheet(onChange, { edit = false } = {}) {
       <label class="field"><span>Clave web (apiKey)</span>
         <input name="apiKey" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…" value="${cfg?.apiKey ?? ''}" /></label>
       <label class="field"><span>Contraseña del club</span>
-        <input name="password" required minlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" value="${cfg?.password ?? ''}" /></label>
+        <input name="password" required minlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
       <p class="small muted">Con una contraseña nueva se crea el club en el servidor con los datos de este dispositivo. Con la de un club que ya existe, se juntan.</p>
       <div class="form-actions">
         <button type="button" class="btn" data-close>Cancelar</button>
@@ -101,7 +105,18 @@ export function openSyncSheet(onChange, { edit = false } = {}) {
       prompt('Copia el enlace de invitación:', url);
     }
   });
-  sheet.root.querySelector('#sync-edit')?.addEventListener('click', () => { sheet.close(); openSyncSheet(onChange, { edit: true }); });
+  sheet.root.querySelector('#sync-password')?.addEventListener('click', async () => {
+    const pw = prompt('Nueva contraseña del club (mínimo 6 caracteres). Los demás tendrán que entrar con el enlace nuevo:');
+    if (pw == null) return;
+    if (pw.trim().length < 6) { alert('La contraseña necesita al menos 6 caracteres.'); return; }
+    if (!confirm('Se moverán todos los datos a la contraseña nueva y la antigua dejará de funcionar. Después envía el enlace nuevo al equipo. ¿Continuar?')) return;
+    toast('Cambiando la contraseña…');
+    const r = await changePassword(club.id, pw.trim());
+    if (r.error) { alert(`No se pudo cambiar: ${r.error}`); return; }
+    sheet.close();
+    toast('Contraseña cambiada: comparte el enlace nuevo');
+    openSyncSheet(onChange);
+  });
   sheet.root.querySelector('#sync-off')?.addEventListener('click', () => {
     if (!confirm('¿Desconectar este dispositivo del servidor? Los datos se quedan aquí y en el servidor; solo deja de sincronizar.')) return;
     removeSyncConfig(club.id);

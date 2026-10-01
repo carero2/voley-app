@@ -3,7 +3,7 @@ import { renderHome } from './views/home.js';
 import { renderTeam } from './views/team.js';
 import { renderNewMatch, renderMatch } from './views/match.js';
 import { renderStats } from './views/stats.js';
-import { renderData } from './views/data.js';
+import { renderData, renderAdvanced } from './views/data.js';
 import { renderClubBar } from './views/clubs.js';
 import { showHelp } from './help.js';
 import { renderVoiceReview } from './views/voice-review.js';
@@ -21,6 +21,7 @@ const routes = [
   { pattern: /^\/estadisticas$/, view: renderStats, tab: 'estadisticas' },
   { pattern: /^\/datos$/, view: renderData, tab: 'datos' },
   { pattern: /^\/unirse$/, view: renderJoin, tab: 'partidos' },
+  { pattern: /^\/avanzado$/, view: renderAdvanced, tab: 'datos' },
 ];
 
 const main = document.getElementById('app');

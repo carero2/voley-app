@@ -53,28 +53,6 @@ export function renderData(el) {
       </div>
       <p class="small muted" id="voice-info"></p>
     </section>
-
-    <section class="card stack">
-      <h2>Análisis de vídeo (pruebas)</h2>
-      <p class="small muted">Marca en un vídeo del partido cuándo acaba cada punto y qué campo lo gana. El vídeo se abre en este dispositivo y no se sube a ningún sitio.</p>
-      <a class="btn" href="video/etiquetar/" target="_blank" rel="noopener">Etiquetar puntos de un vídeo</a>
-      <a class="small" href="https://colab.research.google.com/github/carero2/voley-app/blob/claude/volleyball-stats-github-pages-cf7xwk/video/notebooks/prueba_colab.ipynb" target="_blank" rel="noopener">Abrir el cuaderno de análisis en Google Colab</a>
-    </section>
-
-    <section class="card stack">
-      <h2>Importar</h2>
-      <p class="muted small">Carga una copia JSON. «Combinar» añade los clubes, jugadores y partidos que no tengas; «Reemplazar» borra todo lo actual. Una copia antigua (de antes de los clubes) se carga en el club activo.</p>
-      <input type="file" id="file" accept="application/json,.json" hidden />
-      <div class="form-actions">
-        <button class="btn" data-import="merge">Combinar</button>
-        <button class="btn btn-danger" data-import="replace">Reemplazar</button>
-      </div>
-    </section>
-
-    <section class="card stack">
-      <h2>Zona peligrosa</h2>
-      <button class="btn btn-danger btn-block" id="reset">Borrar todos los datos (todos los clubes)</button>
-    </section>
   `;
 
   el.querySelector('#sync-open').addEventListener('click', () => openSyncSheet(() => renderData(el)));
@@ -101,35 +79,6 @@ export function renderData(el) {
   el.querySelector('#export-csv').addEventListener('click', () => {
     download(`voley-acciones-${today()}.csv`, toCsv(d), 'text/csv;charset=utf-8');
   });
-
-  const fileInput = el.querySelector('#file');
-  let mode = 'merge';
-  el.querySelectorAll('[data-import]').forEach((b) =>
-    b.addEventListener('click', () => {
-      mode = b.dataset.import;
-      fileInput.value = '';
-      fileInput.click();
-    }),
-  );
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    if (mode === 'replace' && !confirm('Se borrarán los datos actuales y se sustituirán por los del archivo. ¿Continuar?')) return;
-    try {
-      importData(JSON.parse(await file.text()), mode);
-      toast('Datos importados');
-      window.dispatchEvent(new HashChangeEvent('hashchange')); // refresca también la barra del club
-    } catch (err) {
-      alert(`No se pudo importar: ${err.message}`);
-    }
-  });
-
-  el.querySelector('#reset').addEventListener('click', () => {
-    if (!confirm('¿Seguro que quieres borrar TODOS los datos de TODOS los clubes? Exporta antes una copia.')) return;
-    resetAll();
-    toast('Datos borrados');
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-  });
 }
 
 function toCsv(d) {
@@ -150,4 +99,65 @@ function toCsv(d) {
   const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
   // BOM para que Excel detecte UTF-8; «;» como separador (Excel en español).
   return '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n');
+}
+
+// ---------- Herramientas avanzadas (#/avanzado) ----------
+// Sin enlace desde la app: solo para quien administra (importar copias, análisis de vídeo, borrar todo).
+export function renderAdvanced(el) {
+  el.innerHTML = html`
+    <header class="page-head"><h1>Herramientas avanzadas</h1>
+      <p class="muted small">Página sin enlace desde la app. Cuidado: lo que se haga aquí puede afectar a los datos compartidos.</p></header>
+
+    <section class="card stack">
+      <h2>Análisis de vídeo (pruebas)</h2>
+      <p class="small muted">Marca en un vídeo del partido cuándo acaba cada punto, qué campo lo gana y cómo. El vídeo se abre en este dispositivo y no se sube a ningún sitio.</p>
+      <a class="btn" href="video/etiquetar/" target="_blank" rel="noopener">Etiquetar puntos de un vídeo</a>
+      <a class="small" href="https://colab.research.google.com/github/carero2/voley-app/blob/claude/volleyball-stats-github-pages-cf7xwk/video/notebooks/prueba_colab.ipynb" target="_blank" rel="noopener">Abrir el cuaderno de análisis en Google Colab</a>
+    </section>
+
+    <section class="card stack">
+      <h2>Importar una copia</h2>
+      <p class="muted small">Carga una copia JSON. «Combinar» añade los clubes, jugadores y partidos que no tengas; «Reemplazar» borra todo lo de este dispositivo. Si el club está conectado al servidor, lo importado se sube al equipo en la siguiente sincronización.</p>
+      <input type="file" id="file" accept="application/json,.json" hidden />
+      <div class="form-actions">
+        <button class="btn" data-import="merge">Combinar</button>
+        <button class="btn btn-danger" data-import="replace">Reemplazar</button>
+      </div>
+    </section>
+
+    <section class="card stack">
+      <h2>Borrar este dispositivo</h2>
+      <p class="muted small">Borra todos los clubes de este dispositivo. Lo que esté en el servidor del club no se borra.</p>
+      <button class="btn btn-danger btn-block" id="reset">Borrar todos los datos de este dispositivo</button>
+    </section>
+  `;
+
+  const fileInput = el.querySelector('#file');
+  let mode = 'merge';
+  el.querySelectorAll('[data-import]').forEach((b) =>
+    b.addEventListener('click', () => {
+      mode = b.dataset.import;
+      fileInput.value = '';
+      fileInput.click();
+    }),
+  );
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    if (mode === 'replace' && !confirm('Se borrarán los datos de este dispositivo y se sustituirán por los del archivo. ¿Continuar?')) return;
+    try {
+      importData(JSON.parse(await file.text()), mode);
+      toast('Datos importados');
+      window.dispatchEvent(new HashChangeEvent('hashchange')); // refresca también la barra del club
+    } catch (err) {
+      alert(`No se pudo importar: ${err.message}`);
+    }
+  });
+
+  el.querySelector('#reset').addEventListener('click', () => {
+    if (prompt('Se borrarán TODOS los clubes de este dispositivo (el servidor no se toca). Escribe BORRAR para confirmar:') !== 'BORRAR') return;
+    resetAll();
+    toast('Datos borrados');
+    location.hash = '#/';
+  });
 }

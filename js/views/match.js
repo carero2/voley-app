@@ -2,9 +2,9 @@ import {
   getData, activePlayers, playerById, matchById, createMatch, addEvent, undoLastEvent,
   setScore, setWinner, setsSummary, closeSet, reopenMatch, deleteMatch, updateMatch,
   setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
-  setMatchMode, setVoice, voiceKeyOf, setIgnoreRot,
+  setMatchMode, setVoice, voiceKeyOf, setIgnoreRot, activeClub,
 } from '../store.js';
-import { requestSync } from '../sync.js';
+import { requestSync, deleteBlocked, syncConfig } from '../sync.js';
 import {
   SKILLS, TEAM_EVENTS, POINT_REASONS, skillById, positionById, describeEvent, activeResults, reasonLabel, reasonCause,
   reasonAvailable,
@@ -1125,7 +1125,7 @@ function openMatchMenu(match, st, rerender) {
     openRivalEditor(match.opponent, rerender, { fixedName: true });
   });
   sheet.root.querySelector('#m-delete').addEventListener('click', () => {
-    if (!confirm('¿Eliminar este partido y todas sus acciones? No se puede deshacer.')) return;
+    if (!confirmDelete(match)) return;
     deleteMatch(match.id);
     sheet.close();
     location.hash = '#/';
@@ -1220,8 +1220,19 @@ function renderFinished(el, match, rerender) {
     rerender();
   });
   el.querySelector('#delete').addEventListener('click', () => {
-    if (!confirm('¿Eliminar este partido y todas sus acciones? No se puede deshacer.')) return;
+    if (!confirmDelete(match)) return;
     deleteMatch(match.id);
     location.hash = '#/';
   });
+}
+
+// Borrar un partido: si está compartido en el servidor del club, se borra para todos (solo administración).
+function confirmDelete(match) {
+  const club = activeClub();
+  const blocked = deleteBlocked(club.id, match);
+  if (blocked) { alert(blocked); return false; }
+  const shared = match.sync && syncConfig(club.id);
+  return confirm(shared
+    ? '¿Eliminar este partido y todas sus acciones PARA TODO EL EQUIPO (también en el servidor del club)? No se puede deshacer.'
+    : '¿Eliminar este partido y todas sus acciones? No se puede deshacer.');
 }

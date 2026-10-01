@@ -2,7 +2,7 @@
 import { clubs, activeClub, switchClub, createClub, updateClub, deleteClub } from '../store.js';
 import { html, openSheet, toast } from '../ui.js';
 import { syncChip, openSyncSheet } from './sync-ui.js';
-import { syncConfig } from '../sync.js';
+import { syncConfig, removeSyncConfig } from '../sync.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -64,7 +64,11 @@ function openClubSheet(onChange) {
   sheet.root.querySelector('#share-club').addEventListener('click', () => { sheet.close(); openSyncSheet(onChange); });
   sheet.root.querySelector('#delete-club').addEventListener('click', () => {
     const n = current.matches.length;
-    if (!confirm(`¿Eliminar el club «${current.name}» con sus jugadores, rivales y ${n} ${n === 1 ? 'partido' : 'partidos'}? No se puede deshacer. Exporta antes una copia si la necesitas.`)) return;
+    const shared = syncConfig(current.id);
+    if (!confirm(shared
+      ? `¿Quitar el club «${current.name}» de este dispositivo? En el servidor no se borra nada: el resto del equipo lo sigue teniendo y puedes volver a entrar con el enlace de invitación.`
+      : `¿Eliminar el club «${current.name}» con sus jugadores, rivales y ${n} ${n === 1 ? 'partido' : 'partidos'}? No se puede deshacer. Exporta antes una copia si la necesitas.`)) return;
+    if (shared) removeSyncConfig(current.id);
     deleteClub(current.id);
     sheet.close();
     toast('Club eliminado');

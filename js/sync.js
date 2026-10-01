@@ -28,12 +28,22 @@ function writeJson(key, value) {
 
 export const syncConfig = (clubId) => readJson(CONFIG_KEY)[clubId] || null;
 
-export async function saveSyncConfig(clubId, { projectId, apiKey, password }) {
+// role: 'admin' (quien conecta el club con el formulario: gestiona la contraseña) o 'member' (entró por enlace).
+export async function saveSyncConfig(clubId, { projectId, apiKey, password, role }) {
   const all = readJson(CONFIG_KEY);
   const key = await clubKey(password);
-  all[clubId] = { projectId: projectId.trim(), apiKey: apiKey.trim(), password, key };
+  const prev = all[clubId] || {};
+  all[clubId] = { ...prev, projectId: projectId.trim(), apiKey: apiKey.trim(), password, key, role: role || prev.role || 'admin' };
   writeJson(CONFIG_KEY, all);
   return all[clubId];
+}
+
+export const isAdmin = (clubId) => (syncConfig(clubId)?.role ?? 'admin') === 'admin';
+
+// Un miembro no puede borrar partidos que ya están en el servidor (se borrarían para todo el equipo).
+export function deleteBlocked(clubId, match) {
+  if (!match?.sync || !syncConfig(clubId) || isAdmin(clubId)) return null;
+  return 'Este partido está compartido con el equipo: solo quien administra el servidor del club puede borrarlo.';
 }
 
 function patchConfig(clubId, patch) {
@@ -192,6 +202,9 @@ async function syncInfo(cfg, club, summary) {
   if (!remote && club.syncJoin) {
     throw new SyncError('No hay ningún club con esa contraseña en este servidor. Revisa la contraseña o el enlace.');
   }
+  if (remote?.data?.closed) {
+    throw new SyncError('La contraseña del club ha cambiado. Pide el nuevo enlace de invitación a quien administra el club.');
+  }
   const local = infoOf(club);
   const dirty = !club.syncInfo || club.syncInfo.hash !== hashOf(local);
   let next = local;
@@ -338,7 +351,7 @@ export async function joinClub({ projectId, apiKey, password, name }) {
   // Club nuevo y vacío: lo del servidor manda (nombre, equipo, jugadores, rivales).
   club.syncInfo = { ver: -1, hash: hashOf(infoOf(club)) };
   club.syncJoin = true;
-  await saveSyncConfig(club.id, { projectId, apiKey, password });
+  await saveSyncConfig(club.id, { projectId, apiKey, password, role: 'member' });
   saveAll();
   const summary = await syncClub(club.id);
   if (summary?.error) {
@@ -348,4 +361,33 @@ export async function joinClub({ projectId, apiKey, password, name }) {
     return { error: summary.error };
   }
   return { club, summary };
+}
+
+// ---------- Cambiar la contraseña (solo administración) ----------
+// Se lleva el club a la carpeta de la contraseña nueva y se cierra la antigua: los que tengan la antigua reciben
+// el aviso de pedir el enlace nuevo, y sus datos dejan de estar en la carpeta antigua.
+export async function changePassword(clubId, newPassword) {
+  const cfg = syncConfig(clubId);
+  const club = clubById(clubId);
+  if (!cfg || !club || !isAdmin(clubId)) return { error: 'Solo quien administra el club puede cambiar la contraseña.' };
+  const first = await syncClub(clubId); // primero, todo lo último de todos
+  if (first?.error) return { error: first.error };
+  if (conflictsOf(club).length) return { error: 'Antes, resuelve los partidos con dos versiones.' };
+  try {
+    const info = fromDoc(await call(cfg, 'GET', 'club/info'));
+    await putDoc(cfg, 'club/info', { data: { ...info.data, closed: true }, ver: info.ver + 1 }, info);
+    const old = await listMatches(cfg);
+    for (const r of old.values()) {
+      if (!r.deleted) await putDoc(cfg, `partidos/${r.id}`, { data: null, ver: r.ver + 1, deleted: true }, r);
+    }
+  } catch (err) {
+    return { error: err.message };
+  }
+  await saveSyncConfig(clubId, { ...cfg, password: newPassword, role: 'admin' });
+  delete club.syncInfo;
+  delete club.deletedMatches;
+  club.matches.forEach((m) => { delete m.sync; });
+  saveAll();
+  const s = await syncClub(clubId);
+  return s?.error ? { error: s.error } : { ok: true };
 }
