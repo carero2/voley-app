@@ -1,6 +1,6 @@
 // Sincronización de un club con un servidor compartido (Firebase: Firestore + acceso anónimo), por su API web.
 //
-// - Cada club tiene su propia configuración (proyecto, clave web y contraseña del club), guardada solo en este
+// - Cada club tiene su propia configuración (proyecto, clave web y contraseña de la liga), guardada solo en este
 //   dispositivo y fuera de las copias de seguridad. Otro club no la usa.
 // - La contraseña no se envía: de ella sale la «clave del club» (SHA-256), que es la carpeta del servidor. Quien
 //   tiene la contraseña ve y registra los datos del club; nadie puede listar los clubes.
@@ -63,7 +63,7 @@ export const isAdmin = (clubId) => (syncConfig(clubId)?.role ?? 'admin') === 'ad
 // Un miembro no puede borrar partidos que ya están en el servidor (se borrarían para todo el equipo).
 export function deleteBlocked(clubId, match) {
   if (!match?.sync || !syncConfig(clubId) || isAdmin(clubId)) return null;
-  return 'Este partido está compartido con el equipo: solo quien administra el servidor del club puede borrarlo.';
+  return 'Este partido está compartido con el equipo: solo quien administra el servidor de la liga puede borrarlo.';
 }
 
 function patchConfig(clubId, patch) {
@@ -89,11 +89,13 @@ export function deviceId() {
 }
 
 // Enlace para que otros se unan al club con un toque (lleva la contraseña: compártelo solo con el equipo).
-export function inviteLink(clubId) {
+// Con `admin`, es el enlace para otro dispositivo de quien administra (mismo nombre y también administra).
+export function inviteLink(clubId, { admin = false } = {}) {
   const cfg = syncConfig(clubId);
   const club = clubById(clubId);
   if (!cfg) return null;
   const q = new URLSearchParams({ p: cfg.projectId, k: cfg.apiKey, c: cfg.password, n: club?.name || '' });
+  if (admin) { q.set('a', '1'); q.set('u', cfg.userName || ''); }
   return `${location.origin}${location.pathname}#/unirse?${q}`;
 }
 
@@ -164,7 +166,7 @@ async function syncError(res, where) {
   try { detail = (await res.json())?.error?.message || ''; } catch { /* sin cuerpo */ }
   if (where === 'auth') {
     if (/OPERATION_NOT_ALLOWED|ADMIN_ONLY/i.test(detail)) return new SyncError('En Firebase falta activar el acceso «Anónimo» (Authentication → Método de acceso).');
-    if (/API key|API_KEY/i.test(detail) || res.status === 400) return new SyncError('La clave web (apiKey) no es válida. Revísala en la configuración del club.');
+    if (/API key|API_KEY/i.test(detail) || res.status === 400) return new SyncError('La clave web (apiKey) no es válida. Revísala en la configuración de la liga.');
   }
   if (res.status === 409 || /FAILED_PRECONDITION|ALREADY_EXISTS|ABORTED/i.test(detail)) {
     return new SyncError('Otro dispositivo estaba guardando a la vez.', { precondition: true });
@@ -220,10 +222,10 @@ async function syncInfo(cfg, club, summary) {
   const raw = await call(cfg, 'GET', 'club/info');
   const remote = raw ? fromDoc(raw) : null;
   if (!remote && club.syncJoin) {
-    throw new SyncError('No hay ningún club con esa contraseña en este servidor. Revisa la contraseña o el enlace.');
+    throw new SyncError('No hay ninguna liga con esa contraseña en este servidor. Revisa la contraseña o el enlace.');
   }
   if (remote?.data?.closed) {
-    throw new SyncError('La contraseña del club ha cambiado. Pide el nuevo enlace de invitación a quien administra el club.');
+    throw new SyncError('La contraseña de la liga ha cambiado. Pide el nuevo enlace de invitación a quien administra la liga.');
   }
   const local = infoOf(club);
   const dirty = !club.syncInfo || club.syncInfo.hash !== hashOf(local);
@@ -372,7 +374,7 @@ export function resolveConflict(clubId, matchId, keep) {
 
 // ---------- Unirse con un enlace de invitación ----------
 
-export async function joinClub({ projectId, apiKey, password, name, userName: who }) {
+export async function joinClub({ projectId, apiKey, password, name, userName: who, admin = false }) {
   const key = await clubKey(password);
   // ¿Ya está este club en el dispositivo?
   const all = readJson(CONFIG_KEY);
@@ -381,11 +383,11 @@ export async function joinClub({ projectId, apiKey, password, name, userName: wh
     if (who) setUserName(existing[0], who);
     return { club: clubById(existing[0]), existed: true };
   }
-  const club = createClub({ name: name || 'Club compartido', teamName: '' });
+  const club = createClub({ name: name || 'Liga compartida', teamName: '' });
   // Club nuevo y vacío: lo del servidor manda (nombre, equipo, jugadores, rivales).
   club.syncInfo = { ver: -1, hash: hashOf(infoOf(club)) };
   club.syncJoin = true;
-  await saveSyncConfig(club.id, { projectId, apiKey, password, role: 'member', userName: who });
+  await saveSyncConfig(club.id, { projectId, apiKey, password, role: admin ? 'admin' : 'member', userName: who });
   saveAll();
   const summary = await syncClub(club.id);
   if (summary?.error) {
@@ -403,7 +405,7 @@ export async function joinClub({ projectId, apiKey, password, name, userName: wh
 export async function changePassword(clubId, newPassword) {
   const cfg = syncConfig(clubId);
   const club = clubById(clubId);
-  if (!cfg || !club || !isAdmin(clubId)) return { error: 'Solo quien administra el club puede cambiar la contraseña.' };
+  if (!cfg || !club || !isAdmin(clubId)) return { error: 'Solo quien administra la liga puede cambiar la contraseña.' };
   const first = await syncClub(clubId); // primero, todo lo último de todos
   if (first?.error) return { error: first.error };
   if (conflictsOf(club).length) return { error: 'Antes, resuelve los partidos con dos versiones.' };

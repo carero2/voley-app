@@ -63,7 +63,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('hashchange', router);
 router();
 
-// ---------- Servidor del club ----------
+// ---------- Servidor de la liga ----------
 // Al abrir, al volver a la app y al recuperar la conexión. Al terminar, se refresca lo que se ve
 // (salvo en pleno partido, para no molestar mientras se registra).
 let lastAuto = 0;

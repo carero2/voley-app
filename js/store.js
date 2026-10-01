@@ -14,7 +14,7 @@ let root;
 let data;
 const listeners = new Set();
 
-const emptyClub = (name = 'Mi club', teamName = 'Mi equipo') => ({
+const emptyClub = (name = 'Mi liga', teamName = 'Mi equipo') => ({
   id: uid(),
   name,
   team: { name: teamName },
@@ -25,7 +25,7 @@ const emptyClub = (name = 'Mi club', teamName = 'Mi equipo') => ({
 
 // Club de ejemplo que aparece la primera vez (o si se borran todos los clubes).
 function demoClub() {
-  const club = emptyClub('Club de prueba', 'Equipo de prueba');
+  const club = emptyClub('Liga de prueba', 'Equipo de prueba');
   club.demo = true;
   const roster = [
     ['1', 'Colocador Demo', 'colocador'],
@@ -50,7 +50,8 @@ function demoClub() {
 function normalizeClub(c) {
   return {
     id: c.id || uid(),
-    name: c.name || 'Mi club',
+    // La liga de prueba se llamaba «Club de prueba».
+    name: (c.demo && c.name === 'Club de prueba' ? 'Liga de prueba' : c.name) || 'Mi liga',
     ...(c.demo ? { demo: true } : {}),
     team: { name: 'Mi equipo', ...(c.team || {}) },
     players: Array.isArray(c.players) ? c.players : [],
@@ -72,7 +73,7 @@ function normalizeRoot(d) {
     clubs = d.clubs.map(normalizeClub);
   } else if (d && (d.players?.length || d.matches?.length)) {
     // Datos de la versión anterior (sin clubes): pasan a un club propio.
-    clubs = [normalizeClub({ ...d, name: 'Mi club' })];
+    clubs = [normalizeClub({ ...d, name: 'Mi liga' })];
   } else {
     clubs = [];
   }
@@ -118,7 +119,7 @@ export function switchClub(id) {
 }
 
 export function createClub({ name, teamName }) {
-  const club = emptyClub(name.trim() || 'Nuevo club', teamName.trim() || name.trim() || 'Mi equipo');
+  const club = emptyClub(name.trim() || 'Nueva liga', teamName.trim() || name.trim() || 'Mi equipo');
   root.clubs.push(club);
   switchClub(club.id);
   return club;
@@ -141,7 +142,7 @@ export function deleteClub(id) {
 
 export const clubById = (id) => root.clubs.find((c) => c.id === id);
 
-// Quién usa la app en este dispositivo (nombre puesto al unirse al servidor del club). Lo da sync.js.
+// Quién usa la app en este dispositivo (nombre puesto al unirse al servidor de la liga). Lo da sync.js.
 let authorFn = () => null;
 export function setAuthor(fn) {
   authorFn = fn;
@@ -637,7 +638,7 @@ export function importRivals(file) {
   return n;
 }
 
-// Borra todo (todos los clubes) y vuelve a empezar con el club de prueba.
+// Borra todo (todos los clubes) y vuelve a empezar con el liga de prueba.
 export function resetAll() {
   root = normalizeRoot(null);
   data = activeFrom(root);

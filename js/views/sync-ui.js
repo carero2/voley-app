@@ -17,7 +17,7 @@ export function syncChip(clubId) {
   // Corto para no tapar el nombre del club; el detalle está al pulsar.
   const label = { running: '☁ …', ok: `☁ ${hhmm(s.at)}`, pending: `☁ ${s.pending}↑`, error: '☁ ⚠' }[s.state];
   const title = { running: 'Sincronizando…', ok: 'Sincronizado', pending: `${s.pending} cambios sin subir`, error: s.error }[s.state];
-  return html`<button class="sync-chip st-${s.state}" id="sync-chip" title="${title}" aria-label="Servidor del club: ${title}">${label}</button>`;
+  return html`<button class="sync-chip st-${s.state}" id="sync-chip" title="${title}" aria-label="Servidor de la liga: ${title}">${label}</button>`;
 }
 
 function statusText(clubId) {
@@ -34,7 +34,7 @@ export function openSyncSheet(onChange) {
   const conflicts = conflictsOf(club).length;
   const sheet = openSheet((cfg ? html`
     <div class="sheet-title">
-      <h2 class="grow">Servidor del club</h2>
+      <h2 class="grow">Servidor de la liga</h2>
       <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
     </div>
     <p class="small muted">«${club.name}» está conectado: todos los que tengan la contraseña ven y registran sus partidos. Se sincroniza al abrir la app, al cerrar cada set y al volver la conexión.</p>
@@ -55,31 +55,33 @@ export function openSyncSheet(onChange) {
       <button class="btn btn-primary btn-block" id="sync-now">Sincronizar ahora</button>
       ${isAdmin(club.id) ? html`
         <button class="btn btn-block" id="sync-invite">Compartir enlace de invitación</button>
-        <p class="small muted">El enlace lleva la contraseña: quien lo abra entra directamente en el club. Compártelo solo con el equipo.</p>
-        <button class="btn btn-block" id="sync-password">Cambiar la contraseña del club</button>
-        <p class="small muted">Tú administras el servidor de este club: solo desde aquí se cambia la contraseña y se pueden borrar partidos compartidos.</p>
+        <p class="small muted">El enlace lleva la contraseña: quien lo abra entra directamente en la liga. Compártelo solo con el equipo.</p>
+        <button class="btn btn-block" id="sync-mine">Abrir en otro dispositivo mío</button>
+        <p class="small muted">Para usar la app también en tu tablet u ordenador con tu mismo nombre y como administración. No lo compartas con nadie más.</p>
+        <button class="btn btn-block" id="sync-password">Cambiar la contraseña de la liga</button>
+        <p class="small muted">Tú administras el servidor de esta liga: solo desde aquí se cambia la contraseña y se pueden borrar partidos compartidos.</p>
       ` : html`
-        <p class="small muted">Te uniste con un enlace de invitación. La contraseña y las invitaciones las gestiona quien administra el club.</p>`}
+        <p class="small muted">Te uniste con un enlace de invitación. La contraseña y las invitaciones las gestiona quien administra la liga.</p>`}
       <button class="btn btn-block btn-danger" id="sync-off">Desconectar este dispositivo</button>
     </div>
   ` : html`
     <div class="sheet-title">
-      <h2 class="grow">Compartir el club con el equipo</h2>
+      <h2 class="grow">Compartir la liga con el equipo</h2>
       <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
     </div>
     <p class="small muted">Conecta «${club.name}» a un servidor gratuito (Firebase) para que todo el equipo registre y vea los partidos.
-      La configuración es <b>solo de este club</b>: los demás clubes no la usan. Se guarda en este dispositivo y no va en las copias.</p>
+      La configuración es <b>solo de esta liga</b>: las demás ligas no la usan. Se guarda en este dispositivo y no va en las copias.</p>
     <p class="small"><a href="${GUIDE}" target="_blank" rel="noopener">Cómo crear el servidor (10 minutos, una sola vez)</a>. Si ya existe, pide el enlace de invitación a quien lo creó.</p>
     <form id="sync-form" class="stack">
       <label class="field"><span>ID del proyecto (projectId)</span>
-        <input name="projectId" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="voley-mi-club" value="${cfg?.projectId ?? ''}" /></label>
+        <input name="projectId" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="voley-mi-liga" value="${cfg?.projectId ?? ''}" /></label>
       <label class="field"><span>Clave web (apiKey)</span>
         <input name="apiKey" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…" value="${cfg?.apiKey ?? ''}" /></label>
-      <label class="field"><span>Contraseña del club</span>
+      <label class="field"><span>Contraseña de la liga</span>
         <input name="password" required minlength="6" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
       <label class="field"><span>Tu nombre</span>
-        <input name="userName" required maxlength="40" autocomplete="name" placeholder="Ej.: Carlos (entrenador)" /></label>
-      <p class="small muted">Con una contraseña nueva se crea el club en el servidor con los datos de este dispositivo. Con la de un club que ya existe, se juntan.</p>
+        <input name="userName" required maxlength="40" autocomplete="name" placeholder="Ej.: Laura" /></label>
+      <p class="small muted">Con una contraseña nueva se crea la liga en el servidor con los datos de este dispositivo. Con la de una liga que ya existe, se juntan.</p>
       <div class="form-actions">
         <button type="button" class="btn" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary">Conectar</button>
@@ -100,7 +102,7 @@ export function openSyncSheet(onChange) {
     sheet.close();
     toast('Conectando…');
     const s = await syncClub(club.id);
-    toast(s?.error ? `⚠ ${s.error}` : 'Club conectado y sincronizado');
+    toast(s?.error ? `⚠ ${s.error}` : 'Liga conectada y sincronizada');
     onChange?.();
   });
   sheet.root.querySelector('#sync-name')?.addEventListener('click', () => {
@@ -120,17 +122,26 @@ export function openSyncSheet(onChange) {
     toast(s?.error ? `⚠ ${s.error}` : summaryText(s));
     onChange?.();
   });
+  sheet.root.querySelector('#sync-mine')?.addEventListener('click', async () => {
+    const url = inviteLink(club.id, { admin: true });
+    try {
+      if (navigator.share) await navigator.share({ title: 'Voley Stats', text: `Abrir «${club.name}» en mi otro dispositivo`, url });
+      else { await navigator.clipboard.writeText(url); toast('Enlace copiado: ábrelo en tu otro dispositivo'); }
+    } catch {
+      prompt('Copia el enlace y ábrelo en tu otro dispositivo:', url);
+    }
+  });
   sheet.root.querySelector('#sync-invite')?.addEventListener('click', async () => {
     const url = inviteLink(club.id);
     try {
-      if (navigator.share) await navigator.share({ title: `Club ${club.name}`, text: `Únete al club «${club.name}» en Voley Stats`, url });
+      if (navigator.share) await navigator.share({ title: `Liga ${club.name}`, text: `Únete a la liga «${club.name}» en Voley Stats`, url });
       else { await navigator.clipboard.writeText(url); toast('Enlace copiado'); }
     } catch {
       prompt('Copia el enlace de invitación:', url);
     }
   });
   sheet.root.querySelector('#sync-password')?.addEventListener('click', async () => {
-    const pw = prompt('Nueva contraseña del club (mínimo 6 caracteres). Los demás tendrán que entrar con el enlace nuevo:');
+    const pw = prompt('Nueva contraseña de la liga (mínimo 6 caracteres). Los demás tendrán que entrar con el enlace nuevo:');
     if (pw == null) return;
     if (pw.trim().length < 6) { alert('La contraseña necesita al menos 6 caracteres.'); return; }
     if (!confirm('Se moverán todos los datos a la contraseña nueva y la antigua dejará de funcionar. Después envía el enlace nuevo al equipo. ¿Continuar?')) return;
@@ -162,18 +173,21 @@ export function summaryText(s) {
 
 // Página del enlace de invitación (#/unirse?p=…&k=…&c=…&n=…).
 export function renderJoin(el, { query }) {
-  const { p, k, c, n } = query;
+  const { p, k, c, n, a, u } = query;
+  const admin = a === '1';
   if (!p || !k || !c) {
     el.innerHTML = html`<div class="card empty"><p>El enlace de invitación está incompleto. Pide otro a quien lo creó.</p><a class="btn" href="#/">Volver</a></div>`;
     return;
   }
   el.innerHTML = html`
-    <header class="page-head"><h1>Unirse al club</h1></header>
+    <header class="page-head"><h1>Unirse a la liga</h1></header>
     <section class="card stack">
-      <p>Te han invitado al club <b>${n || 'compartido'}</b>. Al unirte, sus jugadores y partidos se descargan en este dispositivo y lo que registres se compartirá con el equipo.</p>
+      ${admin
+        ? html`<p>Enlace de <b>administración</b> de la liga <b>${n || 'compartida'}</b>: este dispositivo también la administrará, con tu mismo nombre.</p>`
+        : html`<p>Te han invitado a la liga <b>${n || 'compartida'}</b>. Al unirte, sus jugadores y partidos se descargan en este dispositivo y lo que registres se compartirá con el equipo.</p>`}
       <form id="join-form" class="stack">
         <label class="field"><span>Tu nombre</span>
-          <input name="userName" required maxlength="40" autocomplete="name" placeholder="Ej.: Laura" /></label>
+          <input name="userName" required maxlength="40" autocomplete="name" placeholder="Ej.: Laura" value="${u || ''}" /></label>
         <p class="small muted">Se guarda en cada partido y punto que registres, para saber quién anotó qué.</p>
         <button class="btn btn-primary btn-block btn-lg" id="join" type="submit">Unirme</button>
       </form>
@@ -185,8 +199,8 @@ export function renderJoin(el, { query }) {
     const btn = el.querySelector('#join');
     const who = e.target.userName.value.trim();
     btn.disabled = true;
-    el.querySelector('#join-info').textContent = 'Descargando el club…';
-    const r = await joinClub({ projectId: p, apiKey: k, password: c, name: n, userName: who });
+    el.querySelector('#join-info').textContent = 'Descargando la liga…';
+    const r = await joinClub({ projectId: p, apiKey: k, password: c, name: n, userName: who, admin });
     if (r.error) {
       el.querySelector('#join-info').textContent = `⚠ ${r.error}`;
       btn.disabled = false;

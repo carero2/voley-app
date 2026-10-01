@@ -35,7 +35,7 @@ export function renderTeam(el) {
 
     <header class="page-head section-head">
       <h2>Equipos rivales</h2>
-      <p class="muted small">Solo se usan en este club.</p>
+      <p class="muted small">Solo se usan en esta liga.</p>
     </header>
     <button class="btn btn-block" id="add-rival-team">＋ Añadir equipo rival</button>
     <section class="list">

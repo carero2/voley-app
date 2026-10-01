@@ -13,14 +13,14 @@ import { syncConfig, syncStatus, isAdmin, userName } from '../sync.js';
 import { openSyncSheet } from './sync-ui.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-const slug = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'club';
+const slug = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'liga';
 const refreshAll = () => window.dispatchEvent(new HashChangeEvent('hashchange')); // también la barra del club
 
 // Cada cosa que se exporta tiene su importación (salvo el informe de acciones para Excel).
 const TRANSFERS = [
   {
-    id: 'club', title: 'Este club', desc: 'Jugadores, rivales y partidos del club activo',
-    export: (d) => download(`voley-club-${slug(d.name)}-${today()}.json`, JSON.stringify(exportClub(), null, 2), 'application/json'),
+    id: 'club', title: 'Esta liga', desc: 'Jugadores, rivales y partidos de la liga activa',
+    export: (d) => download(`voley-liga-${slug(d.name)}-${today()}.json`, JSON.stringify(exportClub(), null, 2), 'application/json'),
     accept: '.json,application/json',
   },
   {
@@ -34,7 +34,7 @@ const TRANSFERS = [
     accept: '.json,application/json',
   },
   {
-    id: 'todo', title: 'Copia completa', desc: 'Todos los clubes de este dispositivo',
+    id: 'todo', title: 'Copia completa', desc: 'Todas las ligas de este dispositivo',
     export: () => download(`voley-copia-${today()}.json`, JSON.stringify(exportData(), null, 2), 'application/json'),
     accept: '.json,application/json',
   },
@@ -57,7 +57,7 @@ export function renderData(el, { query = {} } = {}) {
     <section class="settings-group">
       <button class="settings-row" id="s-server">
         <span class="s-icon" aria-hidden="true">☁</span>
-        <span class="grow">Servidor del club<span class="s-sub">${cfg ? `«${d.name}» · ${isAdmin(d.id) ? 'lo administras tú' : `entraste como ${userName(d.id) || 'miembro'}`}` : 'Compartir los partidos con el equipo'}</span></span>
+        <span class="grow">Servidor de la liga<span class="s-sub">${cfg ? `«${d.name}» · ${isAdmin(d.id) ? 'lo administras tú' : `entraste como ${userName(d.id) || 'miembro'}`}` : 'Compartir los partidos con el equipo'}</span></span>
         <span class="s-value ${st.state === 'error' || (cfg && !userName(d.id)) ? 'bad' : ''}">${serverValue}</span>
         <span class="s-chev" aria-hidden="true">›</span>
       </button>
@@ -77,12 +77,12 @@ export function renderData(el, { query = {} } = {}) {
     <section class="settings-group">
       <div class="settings-row">
         <span class="s-icon" aria-hidden="true">📱</span>
-        <span class="grow">Este dispositivo<span class="s-sub" id="s-usage">${plural(clubs().length, 'club', 'clubes')} · ${plural(events, 'acción', 'acciones')} en «${d.name}»</span></span>
+        <span class="grow">Este dispositivo<span class="s-sub" id="s-usage">${plural(clubs().length, 'liga', 'ligas')} · ${plural(events, 'acción', 'acciones')} en «${d.name}»</span></span>
       </div>
     </section>
     <p class="settings-note">${cfg
-      ? 'Los partidos de este club se comparten con el equipo a través del servidor.'
-      : 'Los datos se guardan solo en este dispositivo: exporta una copia de vez en cuando o conecta el servidor del club.'}</p>
+      ? 'Los partidos de esta liga se comparten con el equipo a través del servidor.'
+      : 'Los datos se guardan solo en este dispositivo: exporta una copia de vez en cuando o conecta el servidor de la liga.'}</p>
   `;
 
   el.querySelector('#s-server').addEventListener('click', () => openSyncSheet(rerender));
@@ -119,7 +119,7 @@ function openTransferSheet(onChange) {
       </div>
     </div>
     <p class="small muted">${syncConfig(d.id)
-      ? 'Lo que importes en este club se comparte con el equipo en la siguiente sincronización. Combinar nunca sobrescribe: solo añade lo que falte.'
+      ? 'Lo que importes en esta liga se comparte con el equipo en la siguiente sincronización. Combinar nunca sobrescribe: solo añade lo que falte.'
       : 'Combinar nunca sobrescribe: solo añade lo que falte.'}</p>
     <input type="file" id="file" hidden />
   `.toString());
@@ -168,11 +168,11 @@ function detect(text, name) {
   throw new Error('formato no reconocido.');
 }
 
-const TYPE_LABEL = { club: 'un club', equipo: 'una plantilla', rivales: 'equipos rivales', todo: 'una copia completa' };
+const TYPE_LABEL = { club: 'una liga', equipo: 'una plantilla', rivales: 'equipos rivales', todo: 'una copia completa' };
 
 function openImportSheet(expected, found, done) {
   if (found.type === 'csv-acciones') {
-    alert('Ese archivo es el informe de acciones para Excel: sirve para analizar, pero no se puede importar. Para pasar partidos, usa «Este club → Exportar».');
+    alert('Ese archivo es el informe de acciones para Excel: sirve para analizar, pero no se puede importar. Para pasar partidos, usa «Esta liga → Exportar».');
     return;
   }
   const note = expected !== found.type ? html`<p class="small sync-error">Esperaba ${TYPE_LABEL[expected]}, pero el archivo es ${TYPE_LABEL[found.type]}. Se importará como ${TYPE_LABEL[found.type]}.</p>` : '';
@@ -181,9 +181,9 @@ function openImportSheet(expected, found, done) {
   if (found.type === 'club') {
     const c = found.data.club;
     body = html`
-      <p>Club <b>${c.name}</b> · ${c.team?.name ?? ''}: ${plural((c.players || []).length, 'jugador', 'jugadores')}, ${plural((c.matches || []).length, 'partido', 'partidos')}, ${plural(Object.keys(c.rivals || {}).length, 'rival', 'rivales')}.</p>
+      <p>Liga <b>${c.name}</b> · ${c.team?.name ?? ''}: ${plural((c.players || []).length, 'jugador', 'jugadores')}, ${plural((c.matches || []).length, 'partido', 'partidos')}, ${plural(Object.keys(c.rivals || {}).length, 'rival', 'rivales')}.</p>
       <div class="stack">
-        <button class="btn btn-primary btn-block" data-do="new">${clubs().some((x) => x.id === c.id) ? 'Completar el club que ya tienes' : 'Añadir como club nuevo'}</button>
+        <button class="btn btn-primary btn-block" data-do="new">${clubs().some((x) => x.id === c.id) ? 'Completar la liga que ya tienes' : 'Añadir como liga nueva'}</button>
         <button class="btn btn-block" data-do="merge">Juntar con «${d.name}»</button>
       </div>
       <p class="small muted">Nunca se borra nada: solo se añade lo que falte.</p>`;
@@ -206,12 +206,12 @@ function openImportSheet(expected, found, done) {
   } else {
     const n = found.data.clubs?.length ?? 1;
     body = html`
-      <p>Copia completa con ${plural(n, 'club', 'clubes')}.</p>
+      <p>Copia completa con ${plural(n, 'liga', 'ligas')}.</p>
       <div class="stack">
         <button class="btn btn-primary btn-block" data-do="merge">Combinar con lo que hay</button>
         <button class="btn btn-danger btn-block" data-do="replace">Reemplazar todo este dispositivo</button>
       </div>
-      <p class="small muted">«Combinar» añade clubes, jugadores y partidos que falten. «Reemplazar» borra lo de este dispositivo (el servidor del club no se toca).</p>`;
+      <p class="small muted">«Combinar» añade ligas, jugadores y partidos que falten. «Reemplazar» borra lo de este dispositivo (el servidor de la liga no se toca).</p>`;
   }
   const sheet = openSheet(html`
     <div class="sheet-title"><h2 class="grow">Importar</h2><button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button></div>
@@ -222,7 +222,7 @@ function openImportSheet(expected, found, done) {
     let msg;
     if (found.type === 'club') {
       const c = importClub(found.data, how);
-      msg = how === 'merge' ? `Juntado con «${c.name}»` : `Club «${c.name}» importado`;
+      msg = how === 'merge' ? `Juntado con «${c.name}»` : `Liga «${c.name}» importada`;
     } else if (found.type === 'equipo') {
       if (how === 'replace' && !confirm('¿Sustituir la plantilla por la del archivo?')) return;
       const r = importPlayers(found.data, how);
@@ -364,13 +364,13 @@ export function renderAdvanced(el) {
     <h2 class="settings-title">Borrar este dispositivo</h2>
     <section class="settings-group">
       <div class="settings-row">
-        <span class="grow">Borrar todos los clubes de este dispositivo<span class="s-sub">El servidor del club no se toca</span></span>
+        <span class="grow">Borrar todas las ligas de este dispositivo<span class="s-sub">El servidor de la liga no se toca</span></span>
         <button class="btn btn-small btn-danger" id="reset">Borrar</button>
       </div>
     </section>
   `;
   el.querySelector('#reset').addEventListener('click', () => {
-    if (prompt('Se borrarán TODOS los clubes de este dispositivo (el servidor no se toca). Escribe BORRAR para confirmar:') !== 'BORRAR') return;
+    if (prompt('Se borrarán TODAS las ligas de este dispositivo (el servidor no se toca). Escribe BORRAR para confirmar:') !== 'BORRAR') return;
     resetAll();
     toast('Datos borrados');
     location.hash = '#/';

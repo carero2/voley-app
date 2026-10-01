@@ -567,7 +567,7 @@ function renderLive(el, match, st, rerender) {
   el.querySelector('#other').addEventListener('click', () => openActionSheet(sel, (skill, result) => commit(skill, result)));
   el.querySelector('#close-set')?.addEventListener('click', () => {
     const status = closeSet(match.id);
-    requestSync(); // se sube al servidor del club (si lo hay) al acabar cada set
+    requestSync(); // se sube al servidor de la liga (si lo hay) al acabar cada set
     clearSelection();
     toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
     rerender();
@@ -844,7 +844,7 @@ function renderVoiceLive(el, match, st, rerender) {
   });
   el.querySelector('#close-set')?.addEventListener('click', () => {
     const status = closeSet(match.id);
-    requestSync(); // se sube al servidor del club (si lo hay) al acabar cada set
+    requestSync(); // se sube al servidor de la liga (si lo hay) al acabar cada set
     toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
     rerender();
   });
@@ -976,7 +976,7 @@ function renderSimpleLive(el, match, st, rerender) {
   });
   el.querySelector('#close-set')?.addEventListener('click', () => {
     const status = closeSet(match.id);
-    requestSync(); // se sube al servidor del club (si lo hay) al acabar cada set
+    requestSync(); // se sube al servidor de la liga (si lo hay) al acabar cada set
     toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
     rerender();
   });
@@ -1230,13 +1230,13 @@ function renderFinished(el, match, rerender) {
   });
 }
 
-// Borrar un partido: si está compartido en el servidor del club, se borra para todos (solo administración).
+// Borrar un partido: si está compartido en el servidor de la liga, se borra para todos (solo administración).
 function confirmDelete(match) {
   const club = activeClub();
   const blocked = deleteBlocked(club.id, match);
   if (blocked) { alert(blocked); return false; }
   const shared = match.sync && syncConfig(club.id);
   return confirm(shared
-    ? '¿Eliminar este partido y todas sus acciones PARA TODO EL EQUIPO (también en el servidor del club)? No se puede deshacer.'
+    ? '¿Eliminar este partido y todas sus acciones PARA TODO EL EQUIPO (también en el servidor de la liga)? No se puede deshacer.'
     : '¿Eliminar este partido y todas sus acciones? No se puede deshacer.');
 }

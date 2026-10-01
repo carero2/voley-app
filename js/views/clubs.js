@@ -10,8 +10,8 @@ export function renderClubBar(el, onChange) {
   const club = activeClub();
   el.innerHTML = html`
     <div class="club-line">
-      <button class="club-switch" id="club-switch" aria-label="Cambiar de club">
-        <span class="club-icon" aria-hidden="true">🏛</span>
+      <button class="club-switch" id="club-switch" aria-label="Cambiar de liga">
+        <span class="club-icon" aria-hidden="true">🏆</span>
         <span class="grow club-names"><b>${club.name}</b> <span class="muted">· ${club.team.name}</span></span>
         ${club.demo ? html`<span class="badge badge-demo">PRUEBA</span>` : ''}
         <span aria-hidden="true">▾</span>
@@ -20,8 +20,8 @@ export function renderClubBar(el, onChange) {
     </div>
     ${club.demo && ['', '#', '#/'].includes(location.hash) ? html`
       <div class="demo-note">
-        <span>Club de prueba con datos de ejemplo.</span>
-        <button class="btn btn-small btn-primary" id="demo-create">Crear mi club</button>
+        <span>Liga de prueba con datos de ejemplo.</span>
+        <button class="btn btn-small btn-primary" id="demo-create">Crear mi liga</button>
       </div>` : ''}
   `;
   el.querySelector('#club-switch').addEventListener('click', () => openClubSheet(onChange));
@@ -34,20 +34,20 @@ export function openClubSheet(onChange) {
   const current = activeClub();
   const sheet = openSheet(html`
     <div class="sheet-title">
-      <h2 class="grow">Clubes</h2>
+      <h2 class="grow">Ligas</h2>
       <button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button>
     </div>
-    <p class="muted small">Cada club tiene su propio equipo, jugadores, rivales y partidos. No se mezclan entre sí.</p>
+    <p class="muted small">Cada liga tiene su propio equipo, jugadores, rivales y partidos. No se mezclan entre sí.</p>
     <div class="list">
       ${clubs().map((c) => html`
         <button class="card club-row ${c.id === current.id ? 'active' : ''}" data-club="${c.id}">
           <span class="grow"><b>${c.name}</b><br><span class="muted small">${c.team.name} · ${plural(c.players.filter((p) => p.active !== false).length, 'jugador', 'jugadores')} · ${plural(c.matches.length, 'partido', 'partidos')}</span></span>
           ${c.demo ? html`<span class="badge badge-demo">PRUEBA</span>` : ''}
-          ${c.id === current.id ? html`<span class="badge badge-active">Activo</span>` : ''}
+          ${c.id === current.id ? html`<span class="badge badge-active">Activa</span>` : ''}
         </button>`)}
     </div>
     <div class="stack sheet-actions">
-      <button class="btn btn-primary btn-block" id="new-club">＋ Nuevo club</button>
+      <button class="btn btn-primary btn-block" id="new-club">＋ Nueva liga</button>
       <button class="btn btn-block" id="edit-club">Editar «${current.name}»</button>
       <button class="btn btn-block btn-danger" id="delete-club">Eliminar «${current.name}»</button>
     </div>
@@ -56,7 +56,7 @@ export function openClubSheet(onChange) {
   sheet.root.querySelectorAll('[data-club]').forEach((b) => b.addEventListener('click', () => {
     switchClub(b.dataset.club);
     sheet.close();
-    toast(`Club: ${activeClub().name}`);
+    toast(`Liga: ${activeClub().name}`);
     onChange();
   }));
   sheet.root.querySelector('#new-club').addEventListener('click', () => { sheet.close(); openClubForm(null, onChange); });
@@ -65,23 +65,23 @@ export function openClubSheet(onChange) {
     const n = current.matches.length;
     const shared = syncConfig(current.id);
     if (!confirm(shared
-      ? `¿Quitar el club «${current.name}» de este dispositivo? En el servidor no se borra nada: el resto del equipo lo sigue teniendo y puedes volver a entrar con el enlace de invitación.`
-      : `¿Eliminar el club «${current.name}» con sus jugadores, rivales y ${n} ${n === 1 ? 'partido' : 'partidos'}? No se puede deshacer. Exporta antes una copia si la necesitas.`)) return;
+      ? `¿Quitar la liga «${current.name}» de este dispositivo? En el servidor no se borra nada: el resto del equipo la sigue teniendo y puedes volver a entrar con el enlace de invitación.`
+      : `¿Eliminar la liga «${current.name}» con sus jugadores, rivales y ${n} ${n === 1 ? 'partido' : 'partidos'}? No se puede deshacer. Exporta antes una copia si la necesitas.`)) return;
     if (shared) removeSyncConfig(current.id);
     deleteClub(current.id);
     sheet.close();
-    toast('Club eliminado');
+    toast('Liga eliminada');
     onChange();
   });
 }
 
 export function openClubForm(club, onChange) {
   const sheet = openSheet(html`
-    <h2>${club ? 'Editar club' : 'Nuevo club'}</h2>
+    <h2>${club ? 'Editar liga' : 'Nueva liga'}</h2>
     <form id="club-form" class="stack">
       <label class="field">
-        <span>Nombre del club</span>
-        <input name="name" value="${club?.name ?? ''}" required autocomplete="off" placeholder="Ej.: CV Ejemplo" />
+        <span>Nombre de la liga</span>
+        <input name="name" value="${club?.name ?? ''}" required autocomplete="off" placeholder="Ej.: Liga provincial sénior" />
       </label>
       <label class="field">
         <span>Nombre de mi equipo</span>
@@ -89,7 +89,7 @@ export function openClubForm(club, onChange) {
       </label>
       <div class="form-actions">
         <button type="button" class="btn" data-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary">${club ? 'Guardar' : 'Crear club'}</button>
+        <button type="submit" class="btn btn-primary">${club ? 'Guardar' : 'Crear liga'}</button>
       </div>
     </form>
   `.toString());
@@ -101,7 +101,7 @@ export function openClubForm(club, onChange) {
     if (club) updateClub(club.id, values);
     else createClub(values);
     sheet.close();
-    toast(club ? 'Club guardado' : 'Club creado: añade tus jugadores');
+    toast(club ? 'Liga guardada' : 'Liga creada: añade tus jugadores');
     if (!club) location.hash = '#/equipo';
     onChange();
   });

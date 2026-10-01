@@ -6,9 +6,9 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
 
 ## Funcionalidades
 
-- **Clubes**: si entrenas en varios clubes, cada uno tiene su propio equipo, jugadores, equipos rivales y partidos, sin mezclarse. Se cambia de club desde la barra superior.
-- **Club de prueba**: la primera vez (o si se borran todos los clubes) aparece un club de prueba, marcado como «PRUEBA», con jugadores y un rival de ejemplo.
-- **Plantilla**: jugadores con dorsal, nombre y posición (colocador, opuesto, receptor, central, líbero) y equipos rivales del club (con plantilla opcional).
+- **Ligas**: si juegas o entrenas en varias ligas, cada una tiene su propio equipo, jugadores, equipos rivales y partidos, sin mezclarse. Se cambia de liga desde la barra superior.
+- **Liga de prueba**: la primera vez (o si se borran todas las ligas) aparece una liga de prueba, marcada como «PRUEBA», con jugadores y un rival de ejemplo.
+- **Plantilla**: jugadores con dorsal, nombre y posición (colocador, opuesto, receptor, central, líbero) y equipos rivales de la liga (con plantilla opcional).
 - **Alineación al inicio de cada set**:
   - Sistema de juego: **5-1** (por defecto), 4-2, 6-2 o colocación manual por zonas.
   - Jugador para cada rol (colocador, opuesto, receptores, centrales y líbero), rotación de salida (R1–R6 = zona del colocador) y equipo que saca.
@@ -30,11 +30,11 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   las estadísticas. La rotación actual (R1…R6) se corrige con ↺ ↻; desmarcando «Contar rotación» los puntos quedan
   fuera de las estadísticas por rotación y se ofrecen todos los motivos (por si se dejaron puntos sin apuntar).
   La hora de cada punto queda guardada para sincronizar con el vídeo.
-- **Servidor del club (opcional, gratis con Firebase)**: todo el equipo registra y ve los partidos del club con
-  una contraseña, sin cuentas. Cada club tiene su servidor y contraseña; se sincroniza al abrir, al cerrar cada set y
+- **Servidor de la liga (opcional, gratis con Firebase)**: todo el equipo registra y ve los partidos de la liga con
+  una contraseña, sin cuentas. Cada liga tiene su servidor y contraseña; se sincroniza al abrir, al cerrar cada set y
   al volver la conexión; se invita con un enlace; nunca se sobrescribe (si un partido se registró en dos móviles, se
   elige la versión). Quien entra con invitación pone su nombre, que queda guardado en cada partido y punto
-  que registra. Se configura en Ajustes → Servidor del club. Cómo crearlo: [docs/servidor.md](docs/servidor.md).
+  que registra. Se configura en Ajustes → Servidor de la liga. Cómo crearlo: [docs/servidor.md](docs/servidor.md).
 - **Al terminar cada set**, antes de la alineación del siguiente, acceso directo a las estadísticas del set.
 - **Resumen con gráficos**: cómo se gana cada punto comparado con el rival, side-out y break de los dos equipos,
   side-out y break por rotación y evolución del marcador de cada set.
@@ -52,7 +52,7 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Rival: zonas de ataque rival y estadísticas por jugador rival.
   - Por partido: resultado por sets, puntos propios, errores rivales y propios.
 - **Ayuda**: las métricas llevan un botón «?» que explica qué significan y cómo se calculan.
-- **Datos**: exportación e importación JSON de todos los clubes (copia de seguridad), exportación CSV del club activo para Excel.
+- **Ajustes**: servidor de la liga; importar y exportar (liga, plantilla en CSV para Excel, rivales, copia completa) e informe de acciones para Excel; clave del registro por voz.
 - Funciona **sin conexión** (service worker) y se puede instalar en la pantalla de inicio.
 - Modo oscuro automático.
 
@@ -97,7 +97,7 @@ js/voice/             Registro por voz: grabación, audios (IndexedDB), transcri
 tests/                Pruebas del analizador de voz (node tests/parser.test.mjs)
 docs/voz.md           Cómo funciona y cómo ampliar el registro por voz
 video/                Análisis de vídeo (Python: RF-DETR + reglas), cuaderno de Colab y herramienta para etiquetar puntos
-js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, datos, clubes, rivales
+js/views/*.js         Pantallas: inicio, plantilla, partido, estadísticas, ajustes, ligas, rivales
 sw.js                 Service worker (uso sin conexión)
 ```
 
