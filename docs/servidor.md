@@ -62,8 +62,10 @@ En la misma ventana, **Compartir enlace de invitación**: se abre el menú de co
 Quien abre el enlace escribe **su nombre**, pulsa **Unirme** y ya tiene el club con sus jugadores y partidos. Su
 nombre queda guardado en cada partido y punto que registre (en Ajustes → Servidor del club ves quién ha registrado).
 
-El enlace lleva la contraseña. Si se filtra, cámbiala: **Cambiar configuración** con una contraseña nueva crea el
-club de nuevo en el servidor con los datos de tu dispositivo, y hay que mandar un enlace nuevo al equipo.
+El enlace lleva la contraseña. Si se filtra, cámbiala con **Cambiar la contraseña del club** (solo quien conectó el
+club, que lo administra): todo pasa a la contraseña nueva, la antigua deja de funcionar y hay que mandar el enlace
+nuevo al equipo. Quien entra con el enlace es miembro: no ve la contraseña, no invita y no puede borrar partidos
+compartidos.
 
 ## Cómo funciona
 
