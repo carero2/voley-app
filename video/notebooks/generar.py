@@ -258,7 +258,8 @@ if GUARDAR_EN_DRIVE:
     os.makedirs(SALIDA, exist_ok=True)
 CAMPO = f'{CARPETA}/campo.json'
 if os.path.exists(CAMPO):
-    shutil.copy(CAMPO, f'{SALIDA}/campo.json')  # para la próxima sesión
+    if SALIDA != CARPETA:
+        shutil.copy(CAMPO, f'{SALIDA}/campo.json')  # para la próxima sesión
 elif os.path.exists(f'{SALIDA}/campo.json'):
     CAMPO = f'{SALIDA}/campo.json'
     print('Uso la calibración guardada en', CAMPO, '(si moviste la cámara, repite la celda 3)')
