@@ -332,7 +332,11 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1
 .sb-prev { grid-column: 1 / -1; text-align: center; }
 
 /* Alineación */
-.role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
+/* En el móvil, cada puesto en una fila (etiqueta a la izquierda) para que se lea el nombre entero. */
+.role-grid .field { flex-direction: row; align-items: center; gap: 10px; }
+.role-grid .field > span { flex: 0 0 6.5em; }
+.role-grid .field select { flex: 1; min-width: 0; }
 select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
 
 /* Mapas de zonas (estadísticas) */
@@ -377,15 +381,17 @@ select.invalid { border-color: var(--error); outline: 2px solid var(--error); }
 .set-chip.loss { background: var(--error-bg); color: var(--error); }
 
 /* ---------- Estadísticas ---------- */
-.filters { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+.filters { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; }
+.filters select { min-width: 0; text-overflow: ellipsis; font-size: .95rem; padding-left: 10px; padding-right: 6px; }
+/* Todas las pestañas a la vista: en el móvil, dos filas de cuatro. */
 .tabs {
-  display: flex; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px;
-  overflow-x: auto; scrollbar-width: none;
+  display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px;
 }
+@media (min-width: 700px) { .tabs { grid-template-columns: repeat(8, auto); } }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 1 0 auto; padding: 0 12px; white-space: nowrap; appearance: none; border: 0; background: transparent; color: var(--text-2);
-  font: inherit; font-weight: 600; min-height: 40px; border-radius: 9px; cursor: pointer;
+  min-width: 0; padding: 0 2px; font-size: .8rem; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; appearance: none; border: 0; background: transparent; color: var(--text-2);
+  font-family: inherit; font-weight: 600; min-height: 40px; border-radius: 9px; cursor: pointer;
 }
 .tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 #tab-body { display: flex; flex-direction: column; gap: 16px; }
@@ -493,9 +499,10 @@ body.is-live .club-bar + .container { padding-top: calc(8px + env(safe-area-inse
 .badge-demo { background: var(--bad-bg); color: var(--bad); }
 .badge-active { background: var(--ok-bg); color: var(--ok); }
 .demo-note {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between;
-  background: var(--bad-bg); color: var(--text); border-radius: 12px; padding: 10px 12px; font-size: .9rem;
+  display: flex; align-items: center; gap: 10px; justify-content: space-between;
+  background: var(--bad-bg); color: var(--text); border-radius: 12px; padding: 6px 6px 6px 12px; font-size: .85rem;
 }
+.demo-note .btn-small { min-height: 32px; flex: none; }
 .club-row { display: flex; align-items: center; gap: 8px; width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .club-row.active { border-color: var(--primary); border-width: 2px; }
 .sheet-actions { margin-top: 16px; }
@@ -690,3 +697,37 @@ button.settings-row:active, a.settings-row:active { background: var(--surface-2)
 .s-actions { display: flex; gap: 6px; flex: none; }
 .s-actions .btn-small { min-height: 34px; padding: 0 10px; font-size: .85rem; }
 .settings-note { font-size: .82rem; color: var(--text-2); margin: 6px 4px 0; }
+
+/* Barras enfrentadas (cómo se ganan los puntos) */
+.diverging { display: flex; flex-direction: column; gap: 8px; }
+.dv-row { display: grid; grid-template-columns: 2em minmax(0, 1fr) auto minmax(0, 1fr) 2em; align-items: center; gap: 6px; }
+.dv-label { font-size: .85rem; text-align: center; padding: 0 4px; max-width: 9.5em; line-height: 1.15; }
+.dv-track { height: 14px; display: flex; }
+.dv-track.left { justify-content: flex-end; }
+.dv-fill { display: block; height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; }
+.dv-track.left .dv-fill { border-radius: 4px 0 0 4px; }
+.dv-val { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.dv-val.them { text-align: left; }
+.bar-row.empty .bar-value { color: var(--text-2); font-weight: 400; }
+
+/* Convocados en dos columnas */
+.chips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.chips-grid .chip span { width: 100%; border-radius: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; line-height: 24px; }
+/* R1-R6 en una fila */
+.chips-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.chips-6 .chip span { width: 100%; justify-content: center; padding: 8px 0; }
+/* Botón principal siempre a mano al final de los formularios largos */
+.sticky-actions {
+  position: sticky; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 8px); z-index: 5;
+  display: flex; gap: 8px; padding: 8px 0 0;
+  background: linear-gradient(to bottom, transparent, var(--bg) 30%);
+}
+body.is-live .sticky-actions { bottom: calc(8px + env(safe-area-inset-bottom)); }
+.sticky-actions .btn-block { flex: 1; }
+
+/* Lista de partidos */
+.list-title { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin: 4px 4px -4px; }
+.set-line { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.set-line .w { color: var(--good); font-weight: 600; }
+.set-line .l { color: var(--error); }
+.set-line .cur { color: var(--text-2); font-style: italic; }

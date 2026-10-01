@@ -18,9 +18,9 @@ export function renderClubBar(el, onChange) {
       </button>
       ${syncChip(club.id)}
     </div>
-    ${club.demo ? html`
+    ${club.demo && ['', '#', '#/'].includes(location.hash) ? html`
       <div class="demo-note">
-        <span>Estás en un <b>club de prueba</b> con jugadores de ejemplo. Úsalo para probar la app o crea tu club.</span>
+        <span>Club de prueba con datos de ejemplo.</span>
         <button class="btn btn-small btn-primary" id="demo-create">Crear mi club</button>
       </div>` : ''}
   `;

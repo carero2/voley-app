@@ -5,6 +5,8 @@ import { conflictCards, bindConflictCards } from './sync-ui.js';
 export function renderHome(el) {
   const matches = sortedMatches();
   const hasPlayers = activePlayers().length > 0;
+  const live = matches.filter((m) => m.status === 'live');
+  const done = matches.filter((m) => m.status !== 'live');
 
   el.innerHTML = html`
     <header class="page-head">
@@ -21,27 +23,34 @@ export function renderHome(el) {
 
     ${conflictCards()}
 
-    <section class="list">
-      ${matches.map((m) => matchCard(m))}
-    </section>
+    ${live.length ? html`
+      <h2 class="list-title">En juego</h2>
+      <section class="list">${live.map((m) => matchCard(m))}</section>` : ''}
+    ${done.length ? html`
+      <h2 class="list-title">${live.length ? 'Terminados' : 'Partidos'}</h2>
+      <section class="list">${done.map((m) => matchCard(m))}</section>` : ''}
+    ${!matches.length && hasPlayers ? html`<p class="muted center small">Aún no hay partidos. Pulsa «Nuevo partido» al empezar el primero.</p>` : ''}
   `;
   bindConflictCards(el, () => renderHome(el));
 }
 
 function matchCard(m) {
-  const { won, lost } = setsSummary(m);
+  const { sets, won, lost } = setsSummary(m);
   const live = m.status === 'live';
   const cur = setScore(m, m.currentSet);
   const result = won > lost ? 'win' : won < lost ? 'loss' : '';
+  // Parciales de cada set: 25-20 · 23-25…
+  const partials = [...sets, ...(live && (cur.us || cur.them) ? [{ ...cur, live: true }] : [])];
   return html`
     <a class="card match-card" href="#/partido/${m.id}">
-      <div>
+      <div class="grow">
         <div class="match-opp">vs ${m.opponent}</div>
         <div class="muted small">${formatDate(m.date)}${m.place ? ` · ${m.place}` : ''}</div>
+        ${partials.length ? html`<div class="set-line">${partials.map((s) => html`<span class="${s.live ? 'cur' : s.us > s.them ? 'w' : 'l'}">${s.us}-${s.them}</span>`)}</div>` : ''}
       </div>
       <div class="match-res">
         ${live
-          ? html`<span class="badge badge-live">En juego · Set ${m.currentSet} ${cur.us}-${cur.them}</span>`
+          ? html`<span class="badge badge-live">Set ${m.currentSet} · ${cur.us}-${cur.them}</span>`
           : html`<span class="sets ${result}">${won}-${lost}</span>`}
       </div>
     </a>

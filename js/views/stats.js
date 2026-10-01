@@ -116,23 +116,26 @@ function summaryTab(events, match) {
     ['error_otro', 'Otro error del contrario'],
   ];
   const LEGACY = ['error_ataque', 'error_recepcion', 'error_otro']; // solo en partidos antiguos
+  // Solo los motivos con algún punto (los que están a 0 en los dos equipos no aportan).
   const reasonRows = REASON_ROWS
     .map(([id, label]) => ({ id, label, us: reasons.us[id] || 0, them: reasons.them[id] || 0 }))
-    .filter((r) => !LEGACY.includes(r.id) || r.us || r.them);
+    .filter((r) => r.us || r.them);
   const soBr = [
     { label: 'Side-out', us: sr.us.sideOut, them: sr.them.sideOut,
       tipUs: `${sr.us.so} de ${sr.us.recv} recibiendo`, tipThem: `${sr.them.so} de ${sr.them.recv} recibiendo` },
     { label: 'Break', us: sr.us.break, them: sr.them.break,
       tipUs: `${sr.us.br} de ${sr.us.serve} sacando`, tipThem: `${sr.them.br} de ${sr.them.serve} sacando` },
   ];
-  const rotRows = rot.filter((r) => r.recv + r.serve > 0);
+  // Las seis rotaciones siempre, con «—» donde no hay puntos (así se ve qué falta).
+  const rotRows = rot.some((r) => r.recv + r.serve > 0) ? rot : [];
   return html`
     ${reasons.total ? html`
       <section class="card">
         <h2>Cómo se ganan los puntos</h2>
         ${legend}
-        ${pairBars(reasonRows.map((r) => ({ label: r.label, us: r.us, them: r.them, text: (v) => String(v) })))}
-        ${reasons.extra ? html`<p class="muted small">${reasons.extra} punto${reasons.extra === 1 ? '' : 's'} «+1» sin motivo (no cuentan aquí).</p>` : ''}
+        ${divergingBars(reasonRows.map((r) => ({ label: r.label.replace(' del contrario', ''), us: r.us, them: r.them })))}
+        <p class="muted small legend">Los errores son del equipo contrario: «Error» en la columna de ${ours} es un error de ${rival}.</p>
+        ${reasons.extra ? html`<p class="muted small">${reasons.extra} punto${reasons.extra === 1 ? '' : 's'} «+1 (no sé)» sin motivo (no cuentan aquí).</p>` : ''}
       </section>
       ${reasonsCard(events)}` : ''}
 
@@ -148,12 +151,12 @@ function summaryTab(events, match) {
       <section class="card">
         <h2>Side-out por rotación${help('sideOut')}</h2>
         ${barChart(rotRows.map((r) => ({ label: `R${r.rot}`, value: r.recv ? Math.round((100 * r.sideOut) / r.recv) : 0, suffix: '%',
-          detail: `${r.sideOut} de ${r.recv} puntos recibiendo` })), 100)}
+          empty: !r.recv, detail: r.recv ? `${r.sideOut} de ${r.recv} puntos recibiendo` : 'Sin puntos recibiendo en esta rotación' })), 100)}
       </section>
       <section class="card">
         <h2>Break por rotación${help('breakPt')}</h2>
         ${barChart(rotRows.map((r) => ({ label: `R${r.rot}`, value: r.serve ? Math.round((100 * r.breaks) / r.serve) : 0, suffix: '%',
-          detail: `${r.breaks} de ${r.serve} puntos sacando` })), 100)}
+          empty: !r.serve, detail: r.serve ? `${r.breaks} de ${r.serve} puntos sacando` : 'Sin puntos sacando en esta rotación' })), 100)}
       </section>` : ''}
 
     ${progress.length ? html`
@@ -181,6 +184,22 @@ function pairBars(rows) {
           <span class="pair-label" role="cell">${r.label}</span>
           ${bar('us', r.us, r, r.tipUs)}
           ${bar('them', r.them, r, r.tipThem)}
+        </div>`)}
+    </div>`;
+}
+
+// Barras enfrentadas: nuestro equipo hacia la izquierda y el rival hacia la derecha, una fila por motivo.
+function divergingBars(rows) {
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.us, r.them)));
+  return html`
+    <div class="diverging" role="table">
+      ${rows.map((r) => html`
+        <div class="dv-row" role="row" title="${r.label}: ${r.us} - ${r.them}">
+          <span class="dv-val" role="cell">${r.us}</span>
+          <span class="dv-track left" role="cell"><span class="dv-fill fill-us" style="width:${(r.us / max) * 100}%"></span></span>
+          <span class="dv-label" role="cell">${r.label}</span>
+          <span class="dv-track" role="cell"><span class="dv-fill fill-them" style="width:${(r.them / max) * 100}%"></span></span>
+          <span class="dv-val them" role="cell">${r.them}</span>
         </div>`)}
     </div>`;
 }
@@ -556,12 +575,12 @@ function barChart(items, fixedMax = null) {
   return html`
     <div class="bars" role="table">
       ${items.map((i) => html`
-        <div class="bar-row" role="row" title="${i.label}: ${i.value}${i.suffix ?? ' puntos'} · ${i.detail}" tabindex="0">
+        <div class="bar-row ${i.empty ? 'empty' : ''}" role="row" title="${i.label}: ${i.empty ? '—' : `${i.value}${i.suffix ?? ' puntos'}`} · ${i.detail}" tabindex="0">
           <span class="bar-label" role="cell">${i.label}</span>
           <span class="bar-track" role="cell">
-            <span class="bar-fill" style="width:${(i.value / max) * 100}%"></span>
+            ${i.empty ? '' : html`<span class="bar-fill" style="width:${(i.value / max) * 100}%"></span>`}
           </span>
-          <span class="bar-value" role="cell">${i.value}${i.suffix ?? ''}</span>
+          <span class="bar-value" role="cell">${i.empty ? '—' : `${i.value}${i.suffix ?? ''}`}</span>
           <span class="bar-tip">${i.detail}</span>
         </div>
       `)}

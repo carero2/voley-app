@@ -67,7 +67,7 @@ export function renderNewMatch(el) {
       </fieldset>
       <fieldset class="field">
         <span>Convocados (${players.length})</span>
-        <div class="chips">
+        <div class="chips chips-grid">
           ${players.map((p) => html`
             <label class="chip">
               <input type="checkbox" name="roster" value="${p.id}" checked />
@@ -76,7 +76,9 @@ export function renderNewMatch(el) {
           `)}
         </div>
       </fieldset>
-      <button class="btn btn-primary btn-block btn-lg" type="submit">Continuar a la alineación</button>
+      <div class="sticky-actions">
+        <button class="btn btn-primary btn-block btn-lg" type="submit">Continuar a la alineación</button>
+      </div>
     </form>
   `;
 
@@ -263,20 +265,20 @@ function renderLineup(el, match, rerender) {
       ${d.system !== 'manual' ? html`
         <fieldset class="field">
           <span>Rotación de salida (zona del ${d.system === '5-1' ? 'colocador' : 'colocador 1'})</span>
-          <div class="chips">
+          <div class="chips chips-6">
             ${[1, 2, 3, 4, 5, 6].map((r) => html`
               <label class="chip"><input type="radio" name="rotation" value="${r}" ${r === Number(d.rotation) ? 'checked' : ''} /><span>R${r}</span></label>
             `)}
           </div>
         </fieldset>` : ''}
 
-      <fieldset class="field">
+      ${match.mode === 'sencillo' ? '' : html`<fieldset class="field">
         <span>Colocaciones</span>
         <div class="chips">
           <label class="chip"><input type="radio" name="recordSet" value="no" ${match.recordSet === false ? 'checked' : ''} /><span>No registrar (más rápido)</span></label>
           <label class="chip"><input type="radio" name="recordSet" value="yes" ${match.recordSet !== false ? 'checked' : ''} /><span>Registrar cada colocación</span></label>
         </div>
-      </fieldset>
+      </fieldset>`}
 
       <fieldset class="field">
         <span>Saca primero</span>
@@ -303,10 +305,12 @@ function renderLineup(el, match, rerender) {
     <button class="btn btn-block" id="rival-roster">
       Plantilla de ${match.opponent} (opcional)${rivalCount ? ` · ${rivalCount} jugadores` : ''}
     </button>
-    <button class="btn btn-primary btn-block btn-lg" id="start" ${valid ? '' : 'disabled'}>
-      ${ui.editLineup ? 'Guardar alineación' : `Empezar set ${match.currentSet}`}
-    </button>
-    ${ui.editLineup ? html`<button class="btn btn-block" id="cancel-lineup">Cancelar</button>` : ''}
+    <div class="sticky-actions">
+      ${ui.editLineup ? html`<button class="btn" id="cancel-lineup">Cancelar</button>` : ''}
+      <button class="btn btn-primary btn-block btn-lg" id="start" ${valid ? '' : 'disabled'}>
+        ${ui.editLineup ? 'Guardar alineación' : `Empezar set ${match.currentSet}`}
+      </button>
+    </div>
     ${hasEvents ? html`<p class="muted small center">El set ya tiene acciones: la alineación nueva se aplica desde el principio del set.</p>` : ''}
   `;
 
