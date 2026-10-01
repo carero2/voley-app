@@ -71,7 +71,12 @@ export function openSyncSheet(onChange) {
     </div>
     <p class="small muted">Conecta «${club.name}» a un servidor gratuito (Firebase) para que todo el equipo registre y vea los partidos.
       La configuración es <b>solo de esta liga</b>: las demás ligas no la usan. Se guarda en este dispositivo y no va en las copias.</p>
-    <p class="small"><a href="${GUIDE}" target="_blank" rel="noopener">Cómo crear el servidor (10 minutos, una sola vez)</a>. Si ya existe, pide el enlace de invitación a quien lo creó.</p>
+    <div class="stack sheet-actions">
+      <button class="btn btn-primary btn-block" id="sync-paste">Tengo un enlace de invitación</button>
+      <p class="small muted">Si la liga ya tiene servidor, pega aquí el enlace que te han mandado (útil si usas la app desde la pantalla de inicio del móvil).</p>
+    </div>
+    <h3 class="sheet-sub">O crea el servidor de la liga</h3>
+    <p class="small"><a href="${GUIDE}" target="_blank" rel="noopener">Cómo crear el servidor (10 minutos, una sola vez)</a></p>
     <form id="sync-form" class="stack">
       <label class="field"><span>ID del proyecto (projectId)</span>
         <input name="projectId" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="voley-mi-liga" value="${cfg?.projectId ?? ''}" /></label>
@@ -105,6 +110,7 @@ export function openSyncSheet(onChange) {
     toast(s?.error ? `⚠ ${s.error}` : 'Liga conectada y sincronizada');
     onChange?.();
   });
+  sheet.root.querySelector('#sync-paste')?.addEventListener('click', () => { sheet.close(); openPasteInvite(); });
   sheet.root.querySelector('#sync-name')?.addEventListener('click', () => {
     const name = prompt('Tu nombre (se guarda en los partidos y puntos que registras):', userName(club.id));
     if (name == null || !name.trim()) return;
@@ -237,4 +243,41 @@ export function bindConflictCards(root, onChange) {
     toast('Versión elegida');
     onChange?.();
   })));
+}
+
+// ---------- Pegar un enlace de invitación dentro de la app ----------
+// En el iPhone, la app añadida a la pantalla de inicio no recibe los enlaces (se abren en Safari, que guarda
+// sus datos aparte). Pegando el enlace aquí se une desde la propia app.
+export function parseInvite(text) {
+  const m = String(text || '').match(/unirse\?([^\s#]+)/);
+  if (!m) return null;
+  const q = new URLSearchParams(m[1]);
+  return q.get('p') && q.get('k') && q.get('c') ? m[1] : null;
+}
+
+export function openPasteInvite() {
+  const sheet = openSheet(html`
+    <div class="sheet-title"><h2 class="grow">Unirme con un enlace</h2><button class="btn btn-ghost" data-close aria-label="Cerrar">✕</button></div>
+    <p class="small muted">Copia el enlace de invitación (de WhatsApp, del correo…) y pégalo aquí. También vale el enlace de «otro dispositivo mío».</p>
+    <form id="paste-form" class="stack">
+      <label class="field"><span>Enlace de invitación</span>
+        <textarea name="link" rows="3" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…/#/unirse?…"></textarea></label>
+      <p class="small sync-error" id="paste-error" hidden>Eso no parece un enlace de invitación de la app. Cópialo entero.</p>
+      <div class="form-actions">
+        ${navigator.clipboard?.readText ? html`<button type="button" class="btn" id="paste-btn">Pegar</button>` : ''}
+        <button type="submit" class="btn btn-primary">Continuar</button>
+      </div>
+    </form>
+  `.toString());
+  const form = sheet.root.querySelector('#paste-form');
+  sheet.root.querySelector('#paste-btn')?.addEventListener('click', async () => {
+    try { form.link.value = await navigator.clipboard.readText(); } catch { form.link.focus(); }
+  });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const qs = parseInvite(form.link.value);
+    if (!qs) { sheet.root.querySelector('#paste-error').hidden = false; return; }
+    sheet.close();
+    location.hash = `#/unirse?${qs}`;
+  });
 }

@@ -1,7 +1,7 @@
 // Barra de club activo y gestión de clubes. Cada club tiene su equipo, jugadores, partidos y rivales.
 import { clubs, activeClub, switchClub, createClub, updateClub, deleteClub } from '../store.js';
 import { html, openSheet, toast } from '../ui.js';
-import { syncChip } from './sync-ui.js';
+import { syncChip, openPasteInvite } from './sync-ui.js';
 import { syncConfig, removeSyncConfig } from '../sync.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -48,6 +48,7 @@ export function openClubSheet(onChange) {
     </div>
     <div class="stack sheet-actions">
       <button class="btn btn-primary btn-block" id="new-club">＋ Nueva liga</button>
+      <button class="btn btn-block" id="join-club">Unirme a una liga con un enlace</button>
       <button class="btn btn-block" id="edit-club">Editar «${current.name}»</button>
       <button class="btn btn-block btn-danger" id="delete-club">Eliminar «${current.name}»</button>
     </div>
@@ -60,6 +61,7 @@ export function openClubSheet(onChange) {
     onChange();
   }));
   sheet.root.querySelector('#new-club').addEventListener('click', () => { sheet.close(); openClubForm(null, onChange); });
+  sheet.root.querySelector('#join-club').addEventListener('click', () => { sheet.close(); openPasteInvite(); });
   sheet.root.querySelector('#edit-club').addEventListener('click', () => { sheet.close(); openClubForm(current, onChange); });
   sheet.root.querySelector('#delete-club').addEventListener('click', () => {
     const n = current.matches.length;

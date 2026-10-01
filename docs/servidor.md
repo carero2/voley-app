@@ -62,6 +62,10 @@ En la misma ventana, **Compartir enlace de invitación**: se abre el menú de co
 Quien abre el enlace escribe **su nombre**, pulsa **Unirme** y ya tiene la liga con sus jugadores y partidos. Su
 nombre queda guardado en cada partido y punto que registre (en Ajustes → Servidor de la liga ves quién ha registrado).
 
+**iPhone con la app en la pantalla de inicio**: los enlaces se abren en Safari, no en la app. Desde la app:
+**Ajustes → Servidor de la liga → Tengo un enlace de invitación** (o el menú de ligas → **Unirme a una liga con un
+enlace**) y pega el enlace. Lo mismo para el enlace de «otro dispositivo mío» de quien administra.
+
 El enlace lleva la contraseña. Si se filtra, cámbiala con **Cambiar la contraseña de la liga** (solo quien conectó la
 liga, que la administra): todo pasa a la contraseña nueva, la antigua deja de funcionar y hay que mandar el enlace
 nuevo al equipo. Quien entra con el enlace es miembro: no ve la contraseña, no invita y no puede borrar partidos
