@@ -493,24 +493,21 @@ export function reopenMatch(matchId) {
 
 // ---------- Importar / exportar ----------
 
-export const exportData = () => JSON.parse(JSON.stringify(root));
+export const exportData = () => ({ kind: 'voley-app/todo', ...JSON.parse(JSON.stringify(root)) });
 
-// mode 'merge': añade/actualiza por id. mode 'replace': sustituye todo.
+// mode 'merge': añade lo que falte (por id). mode 'replace': sustituye todo.
 // Acepta copias con clubes y copias antiguas de un solo equipo (que se cargan en el club activo).
 export function importData(incoming, mode = 'merge') {
   const legacy = incoming && Array.isArray(incoming.players) && Array.isArray(incoming.matches);
   if (!incoming || (!Array.isArray(incoming.clubs) && !legacy)) {
     throw new Error('El archivo no tiene el formato esperado.');
   }
-  const mergeById = (current, extra) => {
-    const map = new Map(current.map((x) => [x.id, x]));
-    extra.forEach((x) => map.set(x.id, x));
-    return [...map.values()];
-  };
+  // Combinar: lo que ya hay manda; solo se añade lo que falte.
+  const mergeById = (current, extra) => [...current, ...extra.filter((x) => !current.some((c) => c.id === x.id))];
   const mergeClub = (target, src) => {
     target.players = mergeById(target.players, src.players);
     target.matches = mergeById(target.matches, src.matches);
-    target.rivals = { ...target.rivals, ...src.rivals };
+    target.rivals = { ...src.rivals, ...target.rivals };
   };
 
   if (legacy) {
@@ -529,6 +526,102 @@ export function importData(incoming, mode = 'merge') {
     }
   }
   persist();
+}
+
+// ---------- Importar / exportar por partes (club, plantilla, rivales) ----------
+
+// Lo que solo tiene sentido en este dispositivo (estado de sincronización) no viaja en las copias.
+const SYNC_FIELDS = ['syncInfo', 'syncJoin', 'syncCopies', 'deletedMatches'];
+const cleanMatch = ({ sync, conflict, ...m }) => m; // eslint-disable-line no-unused-vars
+
+export function exportClub(id = data.id) {
+  const club = JSON.parse(JSON.stringify(root.clubs.find((c) => c.id === id)));
+  SYNC_FIELDS.forEach((k) => delete club[k]);
+  club.matches = club.matches.map(cleanMatch);
+  delete club.demo;
+  return { kind: 'voley-app/club', version: SCHEMA_VERSION, exportedAt: new Date().toISOString(), club };
+}
+
+// mode 'new': se añade como club nuevo (si ya existe uno con el mismo id, se combina con él).
+// mode 'merge': se combina con el club activo (jugadores, rivales y partidos que no tenga).
+export function importClub(file, mode = 'new') {
+  const src = normalizeClub(file.club);
+  src.matches = src.matches.map(cleanMatch);
+  const mergeInto = (target) => {
+    // Lo que ya hay manda: solo se añade lo que falte.
+    const byId = (cur, extra) => [...cur, ...extra.filter((x) => !cur.some((c) => c.id === x.id))];
+    target.players = byId(target.players, src.players);
+    target.matches = byId(target.matches, src.matches);
+    target.rivals = { ...src.rivals, ...target.rivals };
+  };
+  let target;
+  if (mode === 'merge') {
+    target = data;
+    mergeInto(target);
+    delete target.demo;
+  } else {
+    target = root.clubs.find((c) => c.id === src.id);
+    if (target) mergeInto(target);
+    else {
+      SYNC_FIELDS.forEach((k) => delete src[k]);
+      root.clubs.push(src);
+      target = src;
+    }
+    root.activeClubId = target.id;
+    data = target;
+  }
+  persist();
+  return target;
+}
+
+// Plantilla: se casan por dorsal (o por nombre si no hay dorsal). mode 'replace' archiva a los que no vienen.
+export function importPlayers(list, mode = 'merge') {
+  const norm = (s) => String(s ?? '').trim().toLowerCase();
+  const seen = new Set();
+  let added = 0;
+  let updated = 0;
+  for (const p of list) {
+    const match = data.players.find((x) => (p.number && norm(x.number) === norm(p.number)) || (!p.number && norm(x.name) === norm(p.name)));
+    if (match) {
+      Object.assign(match, { number: String(p.number ?? match.number).trim(), name: p.name.trim() || match.name, position: p.position || match.position, active: true });
+      seen.add(match.id);
+      updated++;
+    } else {
+      const np = { id: uid(), active: true, number: String(p.number ?? '').trim(), name: p.name.trim(), position: p.position || 'receptor' };
+      data.players.push(np);
+      seen.add(np.id);
+      added++;
+    }
+  }
+  let archived = 0;
+  if (mode === 'replace') {
+    for (const p of [...data.players]) {
+      if (seen.has(p.id) || p.active === false) continue;
+      const used = data.matches.some((m) => m.events.some((e) => e.playerId === p.id));
+      if (used) p.active = false;
+      else data.players = data.players.filter((x) => x !== p);
+      archived++;
+    }
+  }
+  delete data.demo;
+  persist();
+  return { added, updated, archived };
+}
+
+export const exportRivals = () => ({
+  kind: 'voley-app/rivales', version: SCHEMA_VERSION, exportedAt: new Date().toISOString(), rivals: JSON.parse(JSON.stringify(data.rivals)),
+});
+
+export function importRivals(file) {
+  const incoming = file.rivals && typeof file.rivals === 'object' ? file.rivals : {};
+  let n = 0;
+  for (const [key, team] of Object.entries(incoming)) {
+    if (!team?.name) continue;
+    data.rivals[key] = { name: team.name, players: Array.isArray(team.players) ? team.players : [] };
+    n++;
+  }
+  persist();
+  return n;
 }
 
 // Borra todo (todos los clubes) y vuelve a empezar con el club de prueba.

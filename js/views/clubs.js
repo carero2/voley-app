@@ -29,7 +29,7 @@ export function renderClubBar(el, onChange) {
   el.querySelector('#demo-create')?.addEventListener('click', () => openClubForm(null, onChange));
 }
 
-function openClubSheet(onChange) {
+export function openClubSheet(onChange) {
   const current = activeClub();
   const sheet = openSheet(html`
     <div class="sheet-title">
@@ -76,7 +76,7 @@ function openClubSheet(onChange) {
   });
 }
 
-function openClubForm(club, onChange) {
+export function openClubForm(club, onChange) {
   const sheet = openSheet(html`
     <h2>${club ? 'Editar club' : 'Nuevo club'}</h2>
     <form id="club-form" class="stack">
