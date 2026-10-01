@@ -28,8 +28,12 @@ celda los descarga en un `.zip`.""")
 
 code("""#@title 1. Preparar: GPU y código
 import os, subprocess, sys
-gpu = subprocess.run(['nvidia-smi', '--query-gpu=name,memory.total', '--format=csv,noheader'], capture_output=True, text=True).stdout
-print('GPU:', gpu.strip() or 'NINGUNA → Entorno de ejecución → Cambiar tipo → T4 GPU')
+try:
+    gpu = subprocess.run(['nvidia-smi', '--query-gpu=name,memory.total', '--format=csv,noheader'],
+                         capture_output=True, text=True).stdout.strip()
+except FileNotFoundError:  # máquina sin GPU
+    gpu = ''
+print('GPU:', gpu or 'NINGUNA (vale para reanalizar con la celda 9; para detectar o entrenar: Entorno de ejecución → Cambiar tipo → T4 GPU)')
 
 BRANCH = 'claude/volleyball-stats-github-pages-cf7xwk'
 if not os.path.exists('/content/voley-app'):
