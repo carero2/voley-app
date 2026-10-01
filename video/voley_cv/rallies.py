@@ -31,6 +31,7 @@ SERVE_NEAR = 1.0  # distancia balón-jugador (en alturas de su caja) para decir 
 BLOCK_WINDOW = 0.8  # s: un balón que vuelve tan rápido tras un ataque es un bloqueo
 BOUNCE_FEET = -0.85  # altura del balón respecto al jugador más cercano (−1 = sus pies): por debajo, es el suelo
 BOUNCE_NET_GAP = 0.3  # s: un cambio brusco tan cerca de un paso de red es la red o el bloqueo, no un bote
+MIN_PAUSE = 4.0  # s: pausa mínima entre el final de un punto y el saque del siguiente
 SET_BREAK = 60.0  # s: una pausa así entre puntos es un cambio de set (y de campo)
 IN_MARGIN = 0.3  # m de margen para decir que el balón cayó dentro
 
@@ -80,8 +81,20 @@ def infer_rallies(analysis: dict, court: Court) -> list:
         start_i = serve["i"]
         if t[i1] - t[start_i] < MIN_DURATION:
             continue
-        rallies.append({"i0": start_i, "i1": i1, "start": round(float(t[start_i]), 2), "end": round(float(t[i1]), 2),
-                        "server": serve["side"], "server_from": serve["src"], "cross": cross[serve["cross_k"]:]})
+        cand = {"i0": start_i, "i1": i1, "start": round(float(t[start_i]), 2), "end": round(float(t[i1]), 2),
+                "server": serve["side"], "server_from": serve["src"], "cross": cross[serve["cross_k"]:],
+                "serve_speed": round(float(speed[start_i:start_i + max(1, round(1.0 / dt))].max()), 1)}
+        prev = rallies[-1] if rallies else None
+        if prev is not None and cand["start"] - prev["end"] < MIN_PAUSE:
+            # Entre dos puntos siempre hay una pausa (el sacador bota el balón, se coloca…). Sin pausa, uno de los
+            # dos no es un punto: el «punto» corto de antes suele ser el balón que se le pasa al que va a sacar.
+            if _weak(prev) and cand["serve_speed"] >= prev["serve_speed"]:
+                rallies[-1] = cand
+            else:
+                prev["i1"], prev["end"] = i1, cand["end"]
+                prev["cross"] = prev["cross"] + cand["cross"]
+            continue
+        rallies.append(cand)
 
     for r in rallies:
         # El punto acaba en el primer bote: el balón cambia de golpe sin ningún jugador cerca y lejos de la red.
@@ -108,6 +121,11 @@ def infer_rallies(analysis: dict, court: Court) -> list:
         out.append({k: v for k, v in r.items() if k not in ("cross", "touches", "i0", "i1")}
                    | {"crossings": len(r["cross"]), "touches": len(r["touches"])})
     return out
+
+
+def _weak(r):
+    """Un «punto» que parece el pase al sacador: corto y con un solo paso de red."""
+    return r["end"] - r["start"] <= 3.0 and len(r["cross"]) <= 1
 
 
 def _ball_speed(frames, t, dt, ppm):
@@ -278,6 +296,8 @@ def compare(pred: list, labels: list) -> dict:
             "pasos_red": p["crossings"] if p else None, "toques": p["touches"] if p else None,
         })
     found = [r for r in rows if r["video_inicio"] is not None]
+    extras = [{k: p.get(k) for k in ("start", "end", "server", "server_from", "serve_speed", "crossings", "touches",
+                                     "end_by", "winner", "how")} for j, p in enumerate(pred) if j not in used]
 
     def pct(ok, total):
         return round(100 * ok / total, 1) if total else None
@@ -299,6 +319,7 @@ def compare(pred: list, labels: list) -> dict:
         "how_both_pct": pct(sum(r["video_como"] == r["como"] and r["video_gana"] == r["gana"] for r in with_how),
                             len(with_how)),
         "confusion": _confusion(with_how),
+        "extras": extras,
     }
 
 
@@ -346,4 +367,11 @@ def comparison_text(c: dict) -> str:
             f"  {r['gana'] or '?':>2} {r['video_gana'] or '?':>2} {ok} ({r['video_gana_por'] or '—'})"
             f"  {name(r['como'])} → {name(r['video_como']) if r['video_como'] else '—'}"
             + (f"   [{r['video_saca_por'] or '—'} · {r['video_fin_por'] or '—'}]" if r["video_inicio"] is not None else ""))
+    if c.get("extras"):
+        lines += ["", "PUNTOS DE MÁS (el vídeo ve un punto donde no marcaste ninguno)",
+                  "  inicio    fin  saca  (visto por)            vel. saque  pasos red  toques  fin por"]
+        for e in c["extras"]:
+            lines.append(f"  {e['start']:>6.1f} {e['end']:>6.1f}  {e['server'] or '?':>4}  ({e['server_from'] or '—'})"
+                         f"{'':<{max(0, 20 - len(e['server_from'] or '—'))}} {e['serve_speed'] or 0:>6} m/s"
+                         f"  {e['crossings']:>9}  {e['touches']:>6}  {e['end_by'] or '—'}")
     return "\n".join(lines)
