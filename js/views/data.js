@@ -4,6 +4,8 @@ import { html, download, toast, today } from '../ui.js';
 import { voiceSettings, saveVoiceSettings, testConnection } from '../voice/transcribe.js';
 import { audioUsage } from '../voice/db.js';
 import { kickQueue } from '../voice/queue.js';
+import { syncConfig, syncStatus } from '../sync.js';
+import { openSyncSheet } from './sync-ui.js';
 
 export function renderData(el) {
   const d = getData();
@@ -13,9 +15,19 @@ export function renderData(el) {
     <header class="page-head"><h1>Datos</h1></header>
 
     <section class="card">
-      <p>Los datos se guardan <b>solo en este dispositivo</b>. Exporta una copia después de cada partido.</p>
+      ${syncConfig(d.id)
+        ? html`<p>«${d.name}» está <b>conectado al servidor del club</b>: sus partidos se comparten con el equipo.</p>`
+        : html`<p>Los datos se guardan <b>solo en este dispositivo</b>. Exporta una copia después de cada partido.</p>`}
       <p class="muted small">Club «${d.name}»: ${d.players.length} jugadores · ${d.matches.length} partidos · ${events} acciones</p>
       <p class="muted small">${clubs().length} ${clubs().length === 1 ? 'club' : 'clubes'} en este dispositivo.</p>
+    </section>
+
+    <section class="card stack">
+      <h2>Servidor del club</h2>
+      <p class="small muted">${syncConfig(d.id)
+        ? `Conectado${syncStatus(d.id).state === 'error' ? ' (con problemas: ábrelo para ver el aviso)' : ''}.`
+        : 'Comparte este club con el equipo: todos registran y ven los partidos con una contraseña.'}</p>
+      <button class="btn btn-block" id="sync-open">☁ ${syncConfig(d.id) ? 'Ver estado y enlace de invitación' : 'Conectar a un servidor'}</button>
     </section>
 
     <section class="card stack">
@@ -65,6 +77,7 @@ export function renderData(el) {
     </section>
   `;
 
+  el.querySelector('#sync-open').addEventListener('click', () => openSyncSheet(() => renderData(el)));
   el.querySelector('#voice-form').addEventListener('submit', (e) => {
     e.preventDefault();
     saveVoiceSettings({ groqKey: e.target.groqKey.value.trim() });

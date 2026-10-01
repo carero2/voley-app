@@ -9,6 +9,8 @@ import { showHelp } from './help.js';
 import { renderVoiceReview } from './views/voice-review.js';
 import { startQueue } from './voice/queue.js';
 import { releaseMic } from './voice/recorder.js';
+import { renderJoin } from './views/sync-ui.js';
+import { requestSync } from './sync.js';
 
 const routes = [
   { pattern: /^\/$/, view: renderHome, tab: 'partidos' },
@@ -18,6 +20,7 @@ const routes = [
   { pattern: /^\/partido\/(?<id>[\w-]+)$/, view: renderMatch, tab: 'partidos', live: true },
   { pattern: /^\/estadisticas$/, view: renderStats, tab: 'estadisticas' },
   { pattern: /^\/datos$/, view: renderData, tab: 'datos' },
+  { pattern: /^\/unirse$/, view: renderJoin, tab: 'partidos' },
 ];
 
 const main = document.getElementById('app');
@@ -58,6 +61,25 @@ document.addEventListener('click', (e) => {
 
 window.addEventListener('hashchange', router);
 router();
+
+// ---------- Servidor del club ----------
+// Al abrir, al volver a la app y al recuperar la conexión. Al terminar, se refresca lo que se ve
+// (salvo en pleno partido, para no molestar mientras se registra).
+let lastAuto = 0;
+const autoSync = () => {
+  if (Date.now() - lastAuto < 60_000) return;
+  lastAuto = Date.now();
+  requestSync();
+};
+autoSync();
+window.addEventListener('online', () => requestSync());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoSync(); });
+window.addEventListener('voley-sync', (e) => {
+  renderClubBar(document.getElementById('club-bar'), onClubChange);
+  const s = e.detail;
+  const changed = s && !s.started && (s.pulled || s.deleted || s.conflicts);
+  if (changed && !document.body.classList.contains('is-live') && document.getElementById('sheet-root').hidden) router();
+});
 // Cola de transcripción en segundo plano (registro por voz).
 startQueue();
 

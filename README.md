@@ -30,6 +30,10 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   las estadísticas. La rotación actual (R1…R6) se corrige con ↺ ↻; desmarcando «Contar rotación» los puntos quedan
   fuera de las estadísticas por rotación y se ofrecen todos los motivos (por si se dejaron puntos sin apuntar).
   La hora de cada punto queda guardada para sincronizar con el vídeo.
+- **Servidor del club (opcional, gratis con Firebase)**: todo el equipo registra y ve los partidos del club con
+  una contraseña, sin cuentas. Cada club tiene su servidor y contraseña; se sincroniza al abrir, al cerrar cada set y
+  al volver la conexión; se invita con un enlace; nunca se sobrescribe (si un partido se registró en dos móviles, se
+  elige la versión). Cómo crearlo: [docs/servidor.md](docs/servidor.md).
 - **Al terminar cada set**, antes de la alineación del siguiente, acceso directo a las estadísticas del set.
 - **Resumen con gráficos**: cómo se gana cada punto comparado con el rival, side-out y break de los dos equipos,
   side-out y break por rotación y evolución del marcador de cada set.

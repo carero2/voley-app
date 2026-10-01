@@ -478,6 +478,18 @@ body.is-live .club-bar + .container { padding-top: calc(8px + env(safe-area-inse
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
 }
 .club-names { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.club-line { display: flex; gap: 8px; align-items: stretch; }
+.club-line .club-switch { flex: 1; min-width: 0; }
+.sync-chip {
+  appearance: none; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--border); border-radius: 12px; padding: 0 10px; background: var(--surface); color: var(--text-2);
+}
+.sync-chip.st-ok { color: var(--good); }
+.sync-chip.st-pending { color: var(--bad); background: var(--bad-bg); border-color: transparent; }
+.sync-chip.st-error { color: var(--error); background: var(--error-bg); border-color: transparent; }
+.sync-error { color: var(--error); }
+.conflict-card { border: 2px solid var(--bad); }
+.conflict-card p { margin-top: 0; }
 .badge-demo { background: var(--bad-bg); color: var(--bad); }
 .badge-active { background: var(--ok-bg); color: var(--ok); }
 .demo-note {

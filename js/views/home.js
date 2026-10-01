@@ -1,5 +1,6 @@
 import { getData, sortedMatches, setsSummary, setScore, activePlayers } from '../store.js';
 import { html, formatDate } from '../ui.js';
+import { conflictCards, bindConflictCards } from './sync-ui.js';
 
 export function renderHome(el) {
   const matches = sortedMatches();
@@ -18,10 +19,13 @@ export function renderHome(el) {
           <a class="btn btn-primary" href="#/equipo">Crear plantilla</a>
         </div>`}
 
+    ${conflictCards()}
+
     <section class="list">
       ${matches.map((m) => matchCard(m))}
     </section>
   `;
+  bindConflictCards(el, () => renderHome(el));
 }
 
 function matchCard(m) {

@@ -4,6 +4,7 @@ import {
   setLineup, substitute, rivalPlayers, rivalPlayerById, rivalTeams, setRecordSet,
   setMatchMode, setVoice, voiceKeyOf, setIgnoreRot,
 } from '../store.js';
+import { requestSync } from '../sync.js';
 import {
   SKILLS, TEAM_EVENTS, POINT_REASONS, skillById, positionById, describeEvent, activeResults, reasonLabel, reasonCause,
   reasonAvailable,
@@ -562,6 +563,7 @@ function renderLive(el, match, st, rerender) {
   el.querySelector('#other').addEventListener('click', () => openActionSheet(sel, (skill, result) => commit(skill, result)));
   el.querySelector('#close-set')?.addEventListener('click', () => {
     const status = closeSet(match.id);
+    requestSync(); // se sube al servidor del club (si lo hay) al acabar cada set
     clearSelection();
     toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
     rerender();
@@ -838,6 +840,7 @@ function renderVoiceLive(el, match, st, rerender) {
   });
   el.querySelector('#close-set')?.addEventListener('click', () => {
     const status = closeSet(match.id);
+    requestSync(); // se sube al servidor del club (si lo hay) al acabar cada set
     toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
     rerender();
   });
@@ -969,6 +972,7 @@ function renderSimpleLive(el, match, st, rerender) {
   });
   el.querySelector('#close-set')?.addEventListener('click', () => {
     const status = closeSet(match.id);
+    requestSync(); // se sube al servidor del club (si lo hay) al acabar cada set
     toast(status === 'finished' ? 'Partido finalizado' : `Set ${match.currentSet}: elige la alineación`);
     rerender();
   });
@@ -1095,6 +1099,7 @@ function openMatchMenu(match, st, rerender) {
     const s = setScore(match, match.currentSet);
     if (!confirm(`¿Cerrar el set ${match.currentSet} con ${s.us}-${s.them}?`)) return;
     closeSet(match.id);
+    requestSync();
     sheet.close();
     clearSelection();
     rerender();

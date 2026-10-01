@@ -1,7 +1,5 @@
 // Estado de la aplicación y persistencia.
-// Por ahora todo vive en localStorage. Para añadir más adelante una API
-// (p. ej. un Cloudflare Worker), basta con implementar `pushToRemote`/`pullFromRemote`
-// usando `exportData()` / `importData()`; el resto de la app no cambia.
+// Todo vive en localStorage; si un club está conectado a un servidor, `sync.js` lo sincroniza.
 
 import { resultDef } from './actions.js';
 import { setState, rotationOf, tacticalZone, currentPhase } from './rally.js';
@@ -59,6 +57,12 @@ function normalizeClub(c) {
     matches: Array.isArray(c.matches) ? c.matches : [],
     rivals: c.rivals && typeof c.rivals === 'object' ? c.rivals : {},
     settings: c.settings && typeof c.settings === 'object' ? c.settings : {},
+    // Sincronización con el servidor (sync.js): partidos borrados aquí pendientes de borrar allí, versión de los
+    // datos del club y si se está uniendo a un club existente.
+    ...(Array.isArray(c.deletedMatches) && c.deletedMatches.length ? { deletedMatches: c.deletedMatches } : {}),
+    ...(c.syncInfo ? { syncInfo: c.syncInfo } : {}),
+    ...(c.syncJoin ? { syncJoin: true } : {}),
+    ...(Array.isArray(c.syncCopies) && c.syncCopies.length ? { syncCopies: c.syncCopies } : {}),
   };
 }
 
@@ -132,6 +136,13 @@ export function deleteClub(id) {
   if (root.clubs.length === 0) root.clubs.push(demoClub());
   if (!root.clubs.some((c) => c.id === root.activeClubId)) root.activeClubId = root.clubs[0].id;
   data = activeFrom(root);
+  persist();
+}
+
+export const clubById = (id) => root.clubs.find((c) => c.id === id);
+
+// Guarda tras cambios hechos desde fuera (sincronización).
+export function saveAll() {
   persist();
 }
 
@@ -267,6 +278,9 @@ export function updateMatch(id, fields) {
 }
 
 export function deleteMatch(id) {
+  const match = matchById(id);
+  // Si ya estaba en el servidor, se borra también allí en la próxima sincronización.
+  if (match?.sync) data.deletedMatches = [...(data.deletedMatches || []), id];
   data.matches = data.matches.filter((m) => m.id !== id);
   persist();
 }

@@ -1,18 +1,23 @@
 // Barra de club activo y gestión de clubes. Cada club tiene su equipo, jugadores, partidos y rivales.
 import { clubs, activeClub, switchClub, createClub, updateClub, deleteClub } from '../store.js';
 import { html, openSheet, toast } from '../ui.js';
+import { syncChip, openSyncSheet } from './sync-ui.js';
+import { syncConfig } from '../sync.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 export function renderClubBar(el, onChange) {
   const club = activeClub();
   el.innerHTML = html`
-    <button class="club-switch" id="club-switch" aria-label="Cambiar de club">
-      <span class="club-icon" aria-hidden="true">🏛</span>
-      <span class="grow club-names"><b>${club.name}</b> <span class="muted">· ${club.team.name}</span></span>
-      ${club.demo ? html`<span class="badge badge-demo">PRUEBA</span>` : ''}
-      <span aria-hidden="true">▾</span>
-    </button>
+    <div class="club-line">
+      <button class="club-switch" id="club-switch" aria-label="Cambiar de club">
+        <span class="club-icon" aria-hidden="true">🏛</span>
+        <span class="grow club-names"><b>${club.name}</b> <span class="muted">· ${club.team.name}</span></span>
+        ${club.demo ? html`<span class="badge badge-demo">PRUEBA</span>` : ''}
+        <span aria-hidden="true">▾</span>
+      </button>
+      ${syncChip(club.id)}
+    </div>
     ${club.demo ? html`
       <div class="demo-note">
         <span>Estás en un <b>club de prueba</b> con jugadores de ejemplo. Úsalo para probar la app o crea tu club.</span>
@@ -20,6 +25,7 @@ export function renderClubBar(el, onChange) {
       </div>` : ''}
   `;
   el.querySelector('#club-switch').addEventListener('click', () => openClubSheet(onChange));
+  el.querySelector('#sync-chip')?.addEventListener('click', () => openSyncSheet(onChange));
   el.querySelector('#demo-create')?.addEventListener('click', () => openClubForm(null, onChange));
 }
 
@@ -42,6 +48,7 @@ function openClubSheet(onChange) {
     <div class="stack sheet-actions">
       <button class="btn btn-primary btn-block" id="new-club">＋ Nuevo club</button>
       <button class="btn btn-block" id="edit-club">Editar «${current.name}»</button>
+      <button class="btn btn-block" id="share-club">☁ ${syncConfig(current.id) ? 'Servidor del club' : 'Compartir con el equipo (servidor)'}</button>
       <button class="btn btn-block btn-danger" id="delete-club">Eliminar «${current.name}»</button>
     </div>
   `.toString());
@@ -54,6 +61,7 @@ function openClubSheet(onChange) {
   }));
   sheet.root.querySelector('#new-club').addEventListener('click', () => { sheet.close(); openClubForm(null, onChange); });
   sheet.root.querySelector('#edit-club').addEventListener('click', () => { sheet.close(); openClubForm(current, onChange); });
+  sheet.root.querySelector('#share-club').addEventListener('click', () => { sheet.close(); openSyncSheet(onChange); });
   sheet.root.querySelector('#delete-club').addEventListener('click', () => {
     const n = current.matches.length;
     if (!confirm(`¿Eliminar el club «${current.name}» con sus jugadores, rivales y ${n} ${n === 1 ? 'partido' : 'partidos'}? No se puede deshacer. Exporta antes una copia si la necesitas.`)) return;
