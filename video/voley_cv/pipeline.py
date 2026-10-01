@@ -9,7 +9,7 @@ from .analyze import analyze
 from .court import Court
 from .detect import Detector, run_detection
 from .labels import load_rallies
-from .rallies import compare, comparison_text, infer_rallies
+from .rallies import compare, comparison_text, infer_rallies, with_app, with_app_text
 from .render import contact_sheet, render
 from .report import rally_report, summary_text
 from .video_io import load_detections, video_info, write_detections
@@ -150,8 +150,24 @@ def rallies_vs_labels(video, court_path, out_dir, labels_path, stride=2, model="
     t0, t1 = analysis["frames"][0]["t"], analysis["frames"][-1]["t"]
     labels = [r for r in labels if r["end"] >= t0 and r["start"] <= t1]
     cmp = compare(pred, labels)
-    text = summary_text(analysis) + "\n\n" + comparison_text(cmp)
+    app = with_app(analysis, pred, labels)
+    text = summary_text(analysis) + "\n\n" + comparison_text(cmp) + "\n\n" + with_app_text(app)
     (out / f"puntos_{tag}_{name}.txt").write_text(text)
     with open(out / f"puntos_{tag}_{name}.json", "w") as f:
-        json.dump({"video": pred, "comparacion": cmp}, f, ensure_ascii=False, indent=1)
+        json.dump({"video": pred, "comparacion": cmp, "con_app": app}, f, ensure_ascii=False, indent=1)
     return pred, cmp, text
+
+
+def evaluate_folder(folder):
+    """Reanaliza una carpeta de `datos/` (campo.json, detecciones*.jsonl[.gz], etiquetas.json) sin vídeo ni GPU."""
+    folder = Path(folder)
+    det = sorted(folder.glob("detecciones*.jsonl*"))[0]
+    header, frames = load_detections(det)
+    court = Court.load(folder / "campo.json")
+    analysis = analyze(header, frames, court)
+    pred = infer_rallies(analysis, court)
+    labels = load_rallies(folder / "etiquetas.json")
+    cmp = compare(pred, labels)
+    app = with_app(analysis, pred, labels)
+    return analysis, pred, cmp, (summary_text(analysis) + "\n\n" + comparison_text(cmp) + "\n\n"
+                                 + with_app_text(app))

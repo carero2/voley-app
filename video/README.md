@@ -44,13 +44,22 @@ etiquetas**. «Inicio punto» es opcional (solo sirve para medir si el vídeo co
 el mismo lado del vídeo, aunque los equipos cambien de campo.
 
 El `.json` se usa en la **celda 9**: el vídeo saca los puntos por su cuenta (sin mirar las etiquetas) y se
-mide cuántos encuentra y si acierta quién saca, quién gana y el motivo. Reglas que usa:
-- **Saque**: el primer paso de red que sale de un jugador en su línea de fondo (o detrás).
-- **Ganador**: el que saca el punto siguiente; en el último del set, por dónde acaba el balón (dentro de un
-  campo → gana el otro; fuera → falló el que la mandó).
-- **Motivo**: sin paso de red → error de saque; un paso y no vuelve → ace (o error de saque si gana el que
-  recibe); el balón acaba en el campo del que gana → error de ataque del rival; vuelve enseguida tras un ataque
-  → bloqueo; el que pierde casi no la toca → ataque; la toca 2-3 veces sin pasarla → error de recepción/ataque.
+mide cuántos encuentra y si acierta quién saca, quién gana y el motivo. Reglas que usa (`voley_cv/rallies.py`):
+- **Saque**: antes de sacar, los jugadores esperan quietos y en cuanto sale el saque se mueven. Se busca ese
+  «quietos → en movimiento» y un paso de red justo después.
+- **Quién saca**: el campo del que sale ese paso de red; si no se vio el balón, el campo con un jugador detrás
+  de su línea de fondo.
+- **Ganador**: el que saca el punto siguiente; en el último del set, el que mandó el último balón al otro campo.
+- **Motivo**: con el último paso de red de verdad (no cuentan los pases por debajo de la red al acabar):
+  si fue el saque → ace o error de saque; si gana el que lo recibió → error de ataque; si vuelve enseguida tras
+  un ataque → bloqueo; si el que pierde casi no la toca → ataque; si la toca 2-3 veces → error suyo.
+
+Después compara **con los datos de la app** (hora, ganador y motivo de cada punto): el reloj de la app y el del
+vídeo se sincronizan solos (`align_app`), y el vídeo añade el inicio y la duración de cada punto, los pasos de
+red, la zona de la recepción y la zona desde la que se atacó.
+
+La carpeta `datos/` guarda grabaciones ya detectadas para repetir el análisis sin vídeo ni GPU
+(`python -m voley_cv evaluar datos/<carpeta>`).
 
 ## Etiquetar para entrenar (Roboflow)
 
@@ -74,7 +83,7 @@ python -m voley_cv run partido.mov --court campo.json --start 60 --end 120 --str
 ```
 
 Usa la GPU del chip M automáticamente. Otras órdenes: `info`, `frame`, `detect`, `analyze`, `render`,
-`export-frames`, `puntos`, `train` (`python -m voley_cv --help`).
+`export-frames`, `puntos`, `evaluar`, `train` (`python -m voley_cv --help`).
 
 ## Cómo leer el resumen
 

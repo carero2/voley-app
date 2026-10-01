@@ -99,6 +99,9 @@ def main(argv=None):
     p.add_argument("--tiles", type=_tiles, default=(3, 2))
     p.add_argument("--out-dir", default="resultados")
 
+    p = sub.add_parser("evaluar", help="reanalizar una carpeta de datos/ (sin vídeo ni GPU) y compararla con sus etiquetas")
+    p.add_argument("folder")
+
     p = sub.add_parser("train", help="reentrenar con un dataset COCO exportado de Roboflow")
     p.add_argument("dataset")
     p.add_argument("--out", default="modelo")
@@ -162,6 +165,9 @@ def main(argv=None):
         _, _, text = rallies_vs_labels(a.video, a.court, a.out_dir, a.labels, a.stride, a.model, a.weights,
                                        a.tiles, a.start, a.end)
         print(text)
+    elif a.cmd == "evaluar":
+        from .pipeline import evaluate_folder
+        print(evaluate_folder(a.folder)[3])
     elif a.cmd == "train":
         from .train import train
         print(train(a.dataset, a.out, a.model, a.epochs, a.batch))

@@ -1,13 +1,14 @@
 """Puntos sacados solo del vídeo (sin la app) y comparación con los puntos marcados a mano.
 
-Del análisis (trayectoria del balón, toques, pasos de red, jugadores) se deduce:
-  1. Dónde empieza y acaba cada punto: el balón se mueve rápido y el primer paso de red sale de un
-     jugador detrás de la línea de fondo (el saque).
-  2. Quién saca: el lado de ese jugador.
-  3. Quién gana: el que saca el punto siguiente (regla del voleibol). En el último punto de un set,
-     o si no se sabe quién saca después, por dónde acaba el balón.
-  4. Cómo: con el número de pasos de red, los toques después del último paso y el tiempo entre pasos
-     (un bloqueo devuelve el balón enseguida).
+Reglas, comprobadas con un partido real (vídeo lateral desde la grada):
+  1. Saque: antes de sacar, los jugadores están quietos unos segundos y en cuanto sale el saque se mueven.
+     Se busca ese «quietos → en movimiento», y un paso de red justo después con los jugadores quietos antes.
+  2. Quién saca: el campo del que sale ese paso de red; si no se vio el balón, el campo con un jugador
+     detrás de su línea de fondo.
+  3. Quién gana: el que saca el punto siguiente (regla del voleibol). En el último punto de un set, el que
+     mandó el último balón al otro campo.
+  4. Cómo: con el último paso de red de verdad (sin contar el balón que se pasan después por debajo de la
+     red), quién lo mandó, si fue el saque y cuántas veces lo tocó el otro equipo.
 
 Todo son reglas: sirve para medir qué parte del registro de la app puede sustituir el vídeo.
 """
@@ -18,22 +19,19 @@ import math
 
 import numpy as np
 
-from .court import LENGTH, WIDTH, Court
+from .court import LENGTH, Court
 
-MOVE_SPEED = 2.0  # m/s (en la imagen): por debajo, el balón está en la mano, botando o rodando
-SPEED_WINDOW = 0.2  # s sobre los que se mide la velocidad (quita el temblor de la detección)
-MERGE_GAP = 2.0  # s sin balón en movimiento que se toleran dentro de un punto (balón tapado, muy alto…)
-MIN_DURATION = 0.8  # s desde el saque: un ace rápido dura poco más de 1 s
-SERVE_LINE = 1.0  # m: el sacador está a menos de esto de la línea de fondo (o detrás)
-SERVE_BEFORE_CROSS = 2.5  # s como máximo entre el golpe de saque y el paso de red
-SERVE_DEEP = 3.0  # m desde la línea de fondo: un balón que sale de ahí y pasa la red es un saque
-SERVE_NEAR = 1.0  # distancia balón-jugador (en alturas de su caja) para decir que el balón está en sus manos
+STILL = 0.6  # m/s: velocidad típica de los jugadores (mediana) por debajo de la cual «esperan el saque»
+STILL_STRICT = 0.5  # m/s: lo mismo, para detectar el saque sin ver el balón
+MOVING = 0.85  # m/s: tras el saque, los jugadores se mueven al menos así
+SERVE_TO_CROSS = 0.7  # s típicos entre el golpe de saque y el paso de red
+SERVE_GROUP = 6.0  # s: candidatos a saque más cercanos que esto son el mismo saque
+MIN_RALLY = 2.5  # s: dos saques no pueden estar más cerca
+BEHIND_LINE = 0.3  # m detrás de la línea de fondo para contar a un jugador como sacador
+NET_BOUNCE = 0.6  # s: ida y vuelta por la red tan rápida es el balón que toca la red y vuelve
 BLOCK_WINDOW = 0.8  # s: un balón que vuelve tan rápido tras un ataque es un bloqueo
-BOUNCE_FEET = -0.85  # altura del balón respecto al jugador más cercano (−1 = sus pies): por debajo, es el suelo
-BOUNCE_NET_GAP = 0.3  # s: un cambio brusco tan cerca de un paso de red es la red o el bloqueo, no un bote
-MIN_PAUSE = 4.0  # s: pausa mínima entre el final de un punto y el saque del siguiente
+DEAD_AFTER = 2.0  # s tras el último paso de red de verdad para dar el punto por acabado
 SET_BREAK = 60.0  # s: una pausa así entre puntos es un cambio de set (y de campo)
-IN_MARGIN = 0.3  # m de margen para decir que el balón cayó dentro
 
 OTHER = {"A": "B", "B": "A"}
 REASONS = {
@@ -50,223 +48,178 @@ def infer_rallies(analysis: dict, court: Court) -> list:
     if len(frames) < 2:
         return []
     t = np.array([fr["t"] for fr in frames])
-    dt = float(np.median(np.diff(t)))
     ppm = court.px_per_meter()
-    speed = _ball_speed(frames, t, dt, ppm)
-    touches, crossings = analysis["touches"], analysis["crossings"]
+    move = players_speed(frames)
+    crossings = [c | {"t": float(t[c["i"]])} | _cross_features(frames, t, c["i"], ppm) for c in analysis["crossings"]]
+    touches = analysis["touches"]
 
-    # Tramos con el balón moviéndose deprisa, uniendo huecos cortos.
-    segs = []
-    for run in _runs(speed >= MOVE_SPEED):
-        i0, i1 = run[0], run[-1]
-        if segs and t[i0] - t[segs[-1][1]] <= MERGE_GAP:
-            segs[-1][1] = i1
-        else:
-            segs.append([i0, i1])
-
+    serves = _serves(t, move, crossings)
+    # Línea de la red en el suelo, en la imagen: de su extremo lejano (arriba) al cercano (abajo).
+    net_v = tuple(float(v) for _, v in court.to_image([(LENGTH / 2, 9.0), (LENGTH / 2, 0.0)]))
     rallies = []
-    for i0, i1 in segs:
-        cross = [c | {"t": float(t[c["i"]])} for c in crossings if i0 <= c["i"] <= i1]
-        serve = _find_serve(frames, t, i0, cross, court)
-        if serve is None:
-            # Sin saque: balón que se pasan entre puntos, o un trozo del punto anterior (balón perdido un rato).
-            if rallies and t[i0] - rallies[-1]["end"] <= 2 * MERGE_GAP:
-                prev = rallies[-1]
-                prev["i1"], prev["end"] = i1, round(float(t[i1]), 2)
-                continue
-            if len(cross) < 2 or t[i1] - t[i0] < 4.0:
-                continue
-            # Punto largo sin saque visto: se supone que lo sacó quien hizo el primer paso de red.
-            serve = {"i": i0, "side": cross[0]["from"], "cross_k": 0, "src": "primer paso de red"}
-        start_i = serve["i"]
-        if t[i1] - t[start_i] < MIN_DURATION:
-            continue
-        cand = {"i0": start_i, "i1": i1, "start": round(float(t[start_i]), 2), "end": round(float(t[i1]), 2),
-                "server": serve["side"], "server_from": serve["src"], "cross": cross[serve["cross_k"]:],
-                "serve_speed": round(float(speed[start_i:start_i + max(1, round(1.0 / dt))].max()), 1)}
-        prev = rallies[-1] if rallies else None
-        if prev is not None and cand["start"] - prev["end"] < MIN_PAUSE:
-            # Entre dos puntos siempre hay una pausa (el sacador bota el balón, se coloca…). Sin pausa, uno de los
-            # dos no es un punto: el «punto» corto de antes suele ser el balón que se le pasa al que va a sacar.
-            if _weak(prev) and cand["serve_speed"] >= prev["serve_speed"]:
-                rallies[-1] = cand
-            else:
-                prev["i1"], prev["end"] = i1, cand["end"]
-                prev["cross"] = prev["cross"] + cand["cross"]
-            continue
-        rallies.append(cand)
-
-    for r in rallies:
-        # El punto acaba en el primer bote: el balón cambia de golpe sin ningún jugador cerca y lejos de la red.
-        # Lo de después (rebotes, pasárselo por debajo de la red al que va a sacar) no cuenta.
-        bounce = _first_bounce(r, touches, t, frames)
-        r["end_by"] = "bote" if bounce is not None else "balón perdido"
-        if bounce is not None:
-            r["i1"], r["end"] = bounce, round(float(t[bounce]), 2)
-            r["cross"] = [c for c in r["cross"] if c["i"] <= bounce]
-        r["touches"] = [x for x in touches if r["i0"] <= x["i"] <= r["i1"]]
-        r.update(_ending(frames, r, court))
-
+    for k, sv in enumerate(serves):
+        nxt = serves[k + 1]["t"] if k + 1 < len(serves) else t[-1] + 0.1
+        side = sv["side"] or _side_behind_line(frames, t, sv["t"])
+        cross = [c for c in crossings if sv["t"] - 0.3 <= c["t"] < nxt - 1.0]
+        cross = _rally_crossings(cross, sv, net_v)
+        last_t = cross[-1]["t"] if cross else sv["t"] + 1.0
+        end = min(last_t + DEAD_AFTER, nxt - 1.0)
+        rallies.append({"start": round(sv["t"], 2), "end": round(end, 2), "server": side,
+                        "server_from": sv["src"] if sv["side"] else ("jugador tras la línea" if side else None),
+                        "cross": cross, "next": nxt,
+                        "touches": [x for x in touches if sv["t"] <= t[x["i"]] <= end]})
     for k, r in enumerate(rallies):
-        nxt = rallies[k + 1] if k + 1 < len(rallies) else None
-        new_set = nxt is None or nxt["start"] - r["end"] > SET_BREAK
-        # Solo si el saque siguiente se vio de verdad (no supuesto por el primer paso de red).
-        sure = nxt is not None and nxt["server_from"] != "primer paso de red"
-        r["winner_next_serve"] = nxt["server"] if not new_set and sure else None
+        nx = rallies[k + 1] if k + 1 < len(rallies) else None
+        new_set = nx is None or nx["start"] - r["end"] > SET_BREAK
+        r["winner_next_serve"] = None if new_set else nx["server"]
+        last = r["cross"][-1] if r["cross"] else None
+        # Sin saque siguiente: lo más frecuente es que gane quien mandó el último balón al otro campo.
+        r["winner_ball"] = last["from"] if last else None
         r["winner"] = r["winner_next_serve"] or r["winner_ball"]
-        r["winner_from"] = "saque siguiente" if r["winner_next_serve"] else "final del balón" if r["winner_ball"] else None
-        r["how"] = _cause(r)
-    out = []
-    for r in rallies:
-        out.append({k: v for k, v in r.items() if k not in ("cross", "touches", "i0", "i1")}
-                   | {"crossings": len(r["cross"]), "touches": len(r["touches"])})
+        r["winner_from"] = "saque siguiente" if r["winner_next_serve"] else "último paso de red" if r["winner_ball"] else None
+        r["how"] = _cause(r, t)
+        r["end_by"] = "último paso de red" if r["cross"] else "sin balón"
+    return [{k: v for k, v in r.items() if k not in ("cross", "touches", "next")}
+            | {"crossings": len(r["cross"]), "touches": len(r["touches"])} for r in rallies]
+
+
+def players_speed(frames) -> np.ndarray:
+    """Velocidad típica (mediana, m/s) de los jugadores sobre el campo en cada fotograma. Cada jugador se
+    empareja con el más cercano del fotograma anterior (no hace falta seguimiento con identificadores)."""
+    out = np.full(len(frames), np.nan)
+    prev, prev_t = None, None
+    for i, fr in enumerate(frames):
+        pts = np.array([(p["x"], p["y"]) for p in fr["players"]
+                        if -1.0 <= p["x"] <= LENGTH + 1.0 and -1.0 <= p["y"] <= 10.0]).reshape(-1, 2)
+        if prev is not None and len(pts) and len(prev) and fr["t"] > prev_t:
+            d = np.linalg.norm(pts[:, None, :] - prev[None, :, :], axis=2).min(axis=1)
+            d = d[d < 1.0]  # más de 1 m entre fotogramas no es el mismo jugador
+            if len(d):
+                out[i] = float(np.median(d)) / (fr["t"] - prev_t)
+        prev, prev_t = pts, fr["t"]
     return out
 
 
-def _weak(r):
-    """Un «punto» que parece el pase al sacador: corto y con un solo paso de red."""
-    return r["end"] - r["start"] <= 3.0 and len(r["cross"]) <= 1
+def _mean(t, v, a, b):
+    m = (t >= a) & (t < b) & ~np.isnan(v)
+    return float(v[m].mean()) if m.any() else float("nan")
 
 
-def _ball_speed(frames, t, dt, ppm):
-    """Velocidad del balón (m/s en la imagen) medida sobre SPEED_WINDOW segundos."""
-    k = max(1, round(SPEED_WINDOW / dt))
-    pos = [(fr["ball"]["u"], fr["ball"]["v"]) if fr["ball"] else None for fr in frames]
-    speed = np.zeros(len(frames))
-    for i in range(k, len(frames)):
-        a, b = pos[i - k], pos[i]
-        if a and b:
-            speed[i] = math.hypot(b[0] - a[0], b[1] - a[1]) / ppm / (t[i] - t[i - k])
-    return speed
-
-
-def _runs(mask):
-    runs, cur = [], []
-    for i, m in enumerate(mask):
-        if m:
-            cur.append(i)
-        elif cur:
-            runs.append(cur)
-            cur = []
-    if cur:
-        runs.append(cur)
-    return runs
-
-
-def _server_near(fr):
-    """Lado del jugador que tiene el balón si está detrás (o cerca) de su línea de fondo."""
-    b = fr["ball"]
-    if not b:
-        return None
-    best, best_d = None, None
-    for p in fr["players"]:
-        x1, y1, x2, y2 = p["box"]
-        h = max(1.0, y2 - y1)
-        d = math.hypot(max(x1 - b["u"], 0, b["u"] - x2), max(y1 - b["v"], 0, b["v"] - y2)) / h
-        if best_d is None or d < best_d:
-            best, best_d = p, d
-    if best is None or best_d > SERVE_NEAR or not -1.0 <= best["y"] <= WIDTH + 1.0:
-        return None
-    if best["x"] <= SERVE_LINE:
-        return "A"
-    if best["x"] >= LENGTH - SERVE_LINE:
-        return "B"
-    return None
-
-
-def _find_serve(frames, t, i0, cross, court: Court):
-    """El saque es el primer paso de red que viene del fondo de un campo: justo antes, el balón estaba en manos
-    de un jugador en su línea de fondo, o al menos se vio en el fondo de ese campo (el sacador puede no
-    detectarse: está lejos, tapado o fuera de la imagen)."""
-    for k, c in enumerate(cross):
-        j = c["i"] - 1
-        deep = None
-        while j >= 0 and t[c["i"]] - t[j] <= SERVE_BEFORE_CROSS:
-            side = _server_near(frames[j])
-            if side == c["from"]:
-                return {"i": j, "side": side, "cross_k": k, "src": "sacador"}
-            b = frames[j]["ball"]
-            if b and frames[j]["ball_side"] == c["from"]:
-                x = float(court.to_court([(b["u"], b["v"])])[0][0])
-                if (x <= SERVE_DEEP if c["from"] == "A" else x >= LENGTH - SERVE_DEEP):
-                    deep = j
-            j -= 1
-        if deep is not None:
-            return {"i": deep, "side": c["from"], "cross_k": k, "src": "balón al fondo"}
-    return None
-
-
-def _first_bounce(r, touches, t, frames):
-    """Primer bote en el suelo: cambio brusco del balón que baja y pasa a subir, sin jugador cerca (o a la altura
-    de los pies del jugador más cercano), y que no es la red ni un bloqueo (lejos de un paso de red)."""
-    if not r["cross"]:
-        return None
-    first_cross = r["cross"][0]["i"]
-    for x in touches:
-        if x["i"] <= first_cross or x["i"] > r["i1"]:
+def _serves(t, move, crossings):
+    """Saques: pasos de red con los jugadores quietos justo antes, y momentos «quietos → en movimiento»
+    (por si el balón del saque no se vio)."""
+    cands = []
+    for c in crossings:
+        if _mean(t, move, c["t"] - 4.0, c["t"] - 1.0) < STILL:
+            cands.append({"t": c["t"] - SERVE_TO_CROSS, "side": c["from"], "src": "paso de red", "cross_t": c["t"]})
+    best = None
+    for g in np.arange(t[0] + 3.0, t[-1] - 2.0, 0.1):
+        before, after = _mean(t, move, g - 3.0, g - 0.3), _mean(t, move, g + 0.3, g + 2.3)
+        if before < STILL_STRICT and after > MOVING:
+            score = after - before
+            if best is not None and g - best["t"] < 5.0:
+                if score > best["score"]:
+                    best.update(t=float(g), score=score)
+            else:
+                if best is not None:
+                    cands.append(best)
+                best = {"t": float(g), "side": None, "src": "jugadores", "score": score}
+    if best is not None:
+        cands.append(best)
+    cands.sort(key=lambda c: c["t"])
+    serves = []
+    for c in cands:
+        if serves and c["t"] - serves[-1]["t"] < SERVE_GROUP:
+            if serves[-1]["side"] is None and c["side"] is not None:  # mejor el que vio el balón
+                serves[-1] = c
             continue
-        low = x["x"] is None or (x["height"] is not None and x["height"] <= BOUNCE_FEET)
-        if not low or not _down_then_up(frames, x["i"], t):
+        serves.append(c)
+    out = []
+    for s in serves:
+        if out and s["t"] - out[-1]["t"] < MIN_RALLY:
             continue
-        if any(abs(t[x["i"]] - c["t"]) < BOUNCE_NET_GAP for c in r["cross"]):
-            continue
-        return x["i"]
-    return None
+        out.append(s)
+    return out
 
 
-def _down_then_up(frames, i, t, window=0.12):
-    """En la imagen, el balón bajaba (v crece) antes del cambio y sube (v decrece) después."""
-    def pos(j):
-        return frames[j]["ball"]["v"] if 0 <= j < len(frames) and frames[j]["ball"] else None
-
-    k = max(1, int(round(window / max(1e-6, t[1] - t[0]))))
-    before, here, after = pos(i - k), pos(i), pos(i + k)
-    return None not in (before, here, after) and here - before > 0 and after - here < 0
-
-
-def _ending(frames, r, court: Court):
-    """Por dónde acaba el balón: último lado visto y si cayó dentro del campo."""
-    last = None
-    for i in range(r["i1"], r["i0"] - 1, -1):
-        if frames[i]["ball"] and frames[i]["ball_side"]:
-            last = i
-            break
-    if last is None:
-        return {"end_side": None, "landed_in": None, "winner_ball": None}
-    side = frames[last]["ball_side"]
-    b = frames[last]["ball"]
-    # Al final del punto el balón está cerca del suelo: la calibración del suelo da una idea de dónde cayó.
-    x, y = court.to_court([(b["u"], b["v"])])[0]
-    landed_in = bool(-IN_MARGIN <= x <= LENGTH + IN_MARGIN and -IN_MARGIN <= y <= WIDTH + IN_MARGIN)
-    # Cae dentro en un campo → gana el otro. Cae fuera → falló el último que la mandó (el otro campo).
-    winner = side if not landed_in else OTHER[side]
-    return {"end_side": side, "landed_in": landed_in, "winner_ball": winner}
+def _side_behind_line(frames, t, ts):
+    """El campo con algún jugador detrás de su línea de fondo justo antes del saque (el sacador)."""
+    i0, i1 = np.searchsorted(t, [ts - 2.0, ts + 1.0])
+    a = b = 0
+    for k in range(i0, i1):
+        for p in frames[k]["players"]:
+            if -1.5 <= p["y"] <= 10.5:
+                a += -6.0 < p["x"] < -BEHIND_LINE
+                b += LENGTH + BEHIND_LINE < p["x"] < LENGTH + 6.0
+    if max(a, b) < 10 or min(a, b) * 2 > max(a, b):
+        return None
+    return "A" if a > b else "B"
 
 
-def _cause(r):
-    w, srv = r["winner"], r["server"]
+def _cross_features(frames, t, i, ppm):
+    """Altura en la imagen (v mínima: más pequeña = más alto) y velocidad del balón al pasar la red."""
+    pts = [(t[k], frames[k]["ball"]["u"], frames[k]["ball"]["v"]) for k in range(max(0, i - 8), min(len(frames), i + 8))
+           if frames[k]["ball"]]
+    vmin = min(p[2] for p in pts) if pts else None
+    speed = 0.0
+    for a, b in zip(pts, pts[1:]):
+        if b[0] > a[0]:
+            speed = max(speed, math.hypot(b[1] - a[1], b[2] - a[2]) / ppm / (b[0] - a[0]))
+    return {"vmin": vmin, "speed": speed}
+
+
+def _is_dead_ball(c, net_v):
+    """Pase por debajo de la red o balón rodando (ya acabado el punto): bajo en la imagen y lento.
+    «Bajo» se mide entre el pie de la red en el lado lejano (0) y en el cercano (1)."""
+    if c["vmin"] is None:
+        return False
+    far, near = net_v
+    low = (c["vmin"] - far) / max(1.0, near - far)
+    return low > 0.53 or (low > 0.42 and c["speed"] < 20) or (low > 0.0 and c["speed"] < 7.5)
+
+
+def _rally_crossings(cross, serve, net_v):
+    out = []
+    for c in cross:
+        is_serve = serve.get("cross_t") is not None and abs(c["t"] - serve["cross_t"]) < 0.05
+        if not is_serve and _is_dead_ball(c, net_v):
+            break  # a partir de aquí ya no es el punto
+        out.append(c)
+    # Saque que toca la red y vuelve (ida y vuelta casi instantánea): no pasó. Más adelante en el punto, una
+    # vuelta así de rápida es un bloqueo y sí cuenta.
+    if len(out) >= 2 and serve.get("cross_t") is not None and abs(out[0]["t"] - serve["cross_t"]) < 0.05 \
+            and out[1]["to"] == out[0]["from"] and out[1]["t"] - out[0]["t"] < NET_BOUNCE:
+        out = out[:1] + out[2:]
+        out[0] = out[0] | {"net": True}
+    return out
+
+
+def _cause(r, t):
+    w, srv, cross = r["winner"], r["server"], r["cross"]
     if not w:
         return None
-    cross = r["cross"]
-    end = r["end_side"] or (cross[-1]["to"] if cross else None)
-    after = [x for x in r["touches"] if (not cross or x["i"] > cross[-1]["i"]) and x["side"] == end]
-    n_after = len(after)
-    if not cross:
-        return "error_saque" if srv and w != srv else "error_ataque"
-    if len(cross) == 1 and srv:
-        if w != srv:
-            return "error_saque"
-        return "ace" if n_after <= 1 else "error_recepcion" if n_after == 2 else "error_ataque"
-    if end == w:  # el balón acabó en el campo del que gana: el rival la mandó fuera
-        return "error_ataque"
-    # El balón murió en el campo del que pierde.
-    if len(cross) >= 3 or (len(cross) == 2 and not srv):  # el saque no se puede bloquear
-        a, b = cross[-2], cross[-1]
-        if a["from"] == end and b["t"] - a["t"] <= BLOCK_WINDOW:
+    if not cross:  # no se vio pasar el balón: saque directo (ace) o fallado
+        if srv:
+            return "ace" if w == srv else "error_saque"
+        return None
+    last = cross[-1]
+    x, y = last["from"], last["to"]
+    if cross[0].get("net"):  # el saque dio en la red
+        return "error_saque" if w != srv else "ace"
+    if len(cross) == 1 and srv == x:  # el último balón que pasó fue el saque
+        return "ace" if w == x else "error_saque"
+    if w == y:  # lo mandó el otro y gana este: el balón se fue fuera
+        return "error_saque" if len(cross) == 1 else "error_ataque"
+    # Gana quien mandó el último balón: el otro no pudo devolverlo.
+    if len(cross) >= 2:
+        prev = cross[-2]
+        if prev["from"] == y and last["t"] - prev["t"] <= BLOCK_WINDOW:
             return "bloqueo"
-    if n_after <= 1:
+    # Toques del que no pudo devolverlo (con un jugador cerca: los botes en el suelo no cuentan).
+    after = [x_ for x_ in r["touches"] if t[x_["i"]] > last["t"] and x_["side"] == y and x_["x"] is not None]
+    if len(after) <= 1:
         return "ataque"
-    return "error_recepcion" if n_after == 2 else "error_ataque"
+    return "error_recepcion" if len(after) == 2 else "error_ataque"
 
 
 # ---------- Comparación con los puntos marcados a mano ----------
@@ -374,4 +327,100 @@ def comparison_text(c: dict) -> str:
             lines.append(f"  {e['start']:>6.1f} {e['end']:>6.1f}  {e['server'] or '?':>4}  ({e['server_from'] or '—'})"
                          f"{'':<{max(0, 20 - len(e['server_from'] or '—'))}} {e['serve_speed'] or 0:>6} m/s"
                          f"  {e['crossings']:>9}  {e['touches']:>6}  {e['end_by'] or '—'}")
+    return "\n".join(lines)
+
+
+# ---------- Con los datos de la app (hora, ganador y motivo de cada punto) ----------
+
+def align_app(app_ends: list, video_rallies: list, search=(-600.0, 600.0), step=0.5, tol=4.0) -> float:
+    """Desfase (s) entre el reloj de la app y el del vídeo: el que hace coincidir más puntos de la app con el
+    final de un punto del vídeo. Así no hace falta sincronizar nada a mano."""
+    ends = np.array([r["end"] for r in video_rallies])
+    if not len(ends) or not app_ends:
+        return 0.0
+    best, best_score = 0.0, -1.0
+    for off in np.arange(search[0], search[1] + step, step):
+        d = np.abs(ends[None, :] - (np.array(app_ends)[:, None] + off)).min(axis=1)
+        score = float(np.sum(np.clip(1 - d / tol, 0, None)))
+        if score > best_score:
+            best, best_score = float(off), score
+    return best
+
+
+def with_app(analysis: dict, video_rallies: list, app_points: list) -> dict:
+    """Cruza cada punto de la app (end = hora del toque en la app, ya en tiempo del vídeo; winner; how) con el
+    vídeo: inicio del punto, duración, pasos de red, zona de la recepción y zona del ataque que dio el punto."""
+    frames = analysis["frames"]
+    t = np.array([f["t"] for f in frames])
+    touches = [x | {"t": float(t[x["i"]])} for x in analysis["touches"]]
+    crossings = [c | {"t": float(t[c["i"]])} for c in analysis["crossings"]]
+    starts = sorted(r["start"] for r in video_rallies)
+    rows = []
+    for n, p in enumerate(app_points, 1):
+        prev_end = app_points[n - 2]["end"] if n > 1 else -1e9
+        cand = [s for s in starts if prev_end < s < p["end"]]
+        start = cand[-1] if cand else None
+        row = {"punto": n, "fin_app": p["end"], "gana": p["winner"], "como": p.get("how"), "saca": p.get("server"),
+               "inicio_video": start, "duracion": round(p["end"] - start, 1) if start is not None else None,
+               "pasos_red": None, "zona_recepcion": None, "zona_ataque": None}
+        if start is not None:
+            cr = [c for c in crossings if start - 0.3 <= c["t"] <= p["end"]]
+            row["pasos_red"] = len(cr)
+            rec_side = OTHER.get(p.get("server")) if p.get("server") else (cr[0]["to"] if cr else None)
+            rec = [x for x in touches if x["side"] == rec_side and x["zone"] and start < x["t"] < start + 3.5]
+            row["zona_recepcion"] = rec[0]["zone"] if rec else None
+            if p.get("how") in ("ataque", "bloqueo"):
+                w = p["winner"]
+                fin = [c for c in cr if c["from"] == w]
+                if fin:
+                    row["zona_ataque"] = _attacker_zone(frames, t, fin[-1], w)
+        rows.append(row)
+    n = len(rows)
+    att = [r for r in rows if r["como"] in ("ataque", "bloqueo")]
+    srv = [r for r in rows if r["saca"]]
+
+    def pct(k, base):
+        return round(100 * sum(1 for r in base if r[k] is not None) / len(base), 1) if base else None
+    return {"rows": rows, "n": n, "start_pct": pct("inicio_video", rows), "reception_pct": pct("zona_recepcion", srv),
+            "attack_zone_pct": pct("zona_ataque", att), "attacks": len(att)}
+
+
+def _attacker_zone(frames, t, cross, side, window=1.0, reach=1.5):
+    """Zona del jugador que golpeó el balón que pasó la red: el más cercano a la última vez que se vio el
+    balón en su campo antes de pasar (el remate se pierde a menudo por lo rápido que va, el jugador no)."""
+    i = int(np.searchsorted(t, cross["t"])) - 1
+    while i >= 0 and t[i] >= cross["t"] - window:
+        b = frames[i]["ball"]
+        if b and frames[i]["ball_side"] == side:
+            best, best_d = None, None
+            for p in frames[i]["players"]:
+                if p["side"] != side or not p["zone"]:
+                    continue
+                x1, y1, x2, y2 = p["box"]
+                h = max(1.0, y2 - y1)
+                d = math.hypot(max(x1 - b["u"], 0, b["u"] - x2), max(y1 - b["v"], 0, b["v"] - y2)) / h
+                if best_d is None or d < best_d:
+                    best, best_d = p, d
+            if best is not None and best_d <= reach:
+                return best["zone"]
+            return None
+        i -= 1
+    return None
+
+
+def with_app_text(w: dict) -> str:
+    name = lambda h: REASONS.get(h, (h or "?",))[0]  # noqa: E731
+    lines = [
+        "CON LOS DATOS DE LA APP (hora, ganador y motivo de cada punto) + VÍDEO",
+        f"  Ganador y motivo: 100% (los da la app). El vídeo añade, para cada punto:",
+        f"  - Inicio del punto (saque) y duración: {w['start_pct']}% de los puntos",
+        f"  - Zona donde se recibió el saque: {w['reception_pct']}% de los puntos",
+        f"  - Zona desde la que se atacó, en los puntos de ataque/bloqueo: {w['attack_zone_pct']}% de {w['attacks']}",
+        "",
+        "  punto  gana  motivo                       saque→fin  pasos red  zona recep.  zona ataque",
+    ]
+    for r in w["rows"]:
+        dur = "—" if r["duracion"] is None else f"{r['duracion']:.1f} s"
+        lines.append(f"  {r['punto']:>5}  {r['gana'] or '?':>4}  {name(r['como']):<28} {dur:>9}  {r['pasos_red'] if r['pasos_red'] is not None else '—':>9}"
+                     f"  {r['zona_recepcion'] or '—':>11}  {r['zona_ataque'] or '—':>11}")
     return "\n".join(lines)

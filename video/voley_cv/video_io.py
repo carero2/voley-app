@@ -68,8 +68,11 @@ def write_detections(path, header: dict, frames):
 
 def load_detections(path):
     """Devuelve (cabecera, lista de fotogramas)."""
+    import gzip
+
     header, frames = None, []
-    with open(path) as f:
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt") as f:
         for line in f:
             rec = json.loads(line)
             if "header" in rec:
