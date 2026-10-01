@@ -1,0 +1,294 @@
+{
+  "version": 1,
+  "video": "A001_09292128_C004.mov",
+  "view": "lateral",
+  "events": [
+    {
+      "t": 60.64,
+      "type": "start"
+    },
+    {
+      "t": 77.94,
+      "type": "point",
+      "side": "B",
+      "how": "error_ataque"
+    },
+    {
+      "t": 93.02,
+      "type": "start"
+    },
+    {
+      "t": 104.72,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 120.64,
+      "type": "start"
+    },
+    {
+      "t": 125.9,
+      "type": "point",
+      "side": "B",
+      "how": "ace"
+    },
+    {
+      "t": 140.27,
+      "type": "start"
+    },
+    {
+      "t": 150.84,
+      "type": "point",
+      "side": "A",
+      "how": "error_recepcion"
+    },
+    {
+      "t": 172.2,
+      "type": "start"
+    },
+    {
+      "t": 182.23,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 198.22,
+      "type": "start"
+    },
+    {
+      "t": 211.49,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 222.94,
+      "type": "start"
+    },
+    {
+      "t": 232.04,
+      "type": "point",
+      "side": "B",
+      "how": "error_ataque"
+    },
+    {
+      "t": 238.42,
+      "type": "start"
+    },
+    {
+      "t": 267.58,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 278.45,
+      "type": "start"
+    },
+    {
+      "t": 286.82,
+      "type": "point",
+      "side": "A",
+      "how": "error_ataque"
+    },
+    {
+      "t": 304.63,
+      "type": "start"
+    },
+    {
+      "t": 324.22,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 339.51,
+      "type": "start"
+    },
+    {
+      "t": 345.56,
+      "type": "point",
+      "side": "B",
+      "how": "ace"
+    },
+    {
+      "t": 354.71,
+      "type": "start"
+    },
+    {
+      "t": 361.05,
+      "type": "point",
+      "side": "B",
+      "how": "ace"
+    },
+    {
+      "t": 374.41,
+      "type": "start"
+    },
+    {
+      "t": 392.86,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 409.11,
+      "type": "start"
+    },
+    {
+      "t": 426.1,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 441.96,
+      "type": "start"
+    },
+    {
+      "t": 466.9,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 485.83,
+      "type": "start"
+    },
+    {
+      "t": 519.91,
+      "type": "point",
+      "side": "B",
+      "how": "error_recepcion"
+    },
+    {
+      "t": 537.51,
+      "type": "start"
+    },
+    {
+      "t": 542.44,
+      "type": "point",
+      "side": "B",
+      "how": "ace"
+    },
+    {
+      "t": 552.03,
+      "type": "start"
+    },
+    {
+      "t": 564.07,
+      "type": "point",
+      "side": "B",
+      "how": "ataque"
+    },
+    {
+      "t": 579.22,
+      "type": "start"
+    },
+    {
+      "t": 587.11,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 601.38,
+      "type": "start"
+    },
+    {
+      "t": 607.81,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 620.77,
+      "type": "start"
+    },
+    {
+      "t": 642.75,
+      "type": "point",
+      "side": "B",
+      "how": "error_ataque"
+    },
+    {
+      "t": 651.41,
+      "type": "start"
+    },
+    {
+      "t": 661.63,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 677.71,
+      "type": "start"
+    },
+    {
+      "t": 690.85,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 705.59,
+      "type": "start"
+    },
+    {
+      "t": 709.48,
+      "type": "point",
+      "side": "B",
+      "how": "error_saque"
+    },
+    {
+      "t": 725.5,
+      "type": "start"
+    },
+    {
+      "t": 743.61,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 761.86,
+      "type": "start"
+    },
+    {
+      "t": 766.45,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 788.2,
+      "type": "start"
+    },
+    {
+      "t": 792.22,
+      "type": "point",
+      "side": "B",
+      "how": "error_saque"
+    },
+    {
+      "t": 800.09,
+      "type": "start"
+    },
+    {
+      "t": 819.12,
+      "type": "point",
+      "side": "A",
+      "how": "ataque"
+    },
+    {
+      "t": 836.98,
+      "type": "start"
+    }
+  ],
+  "firstServe": {
+    "1": "B"
+  }
+}
