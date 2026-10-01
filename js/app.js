@@ -86,4 +86,17 @@ startQueue();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW no registrado', err));
+  // Versión nueva instalada: se recarga para usarla ya (salvo en pleno partido, que se aplica al salir).
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  const applyUpdate = () => {
+    if (reloading) return;
+    if (document.body.classList.contains('is-live')) {
+      window.addEventListener('hashchange', applyUpdate, { once: true });
+      return;
+    }
+    reloading = true;
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) applyUpdate(); });
 }

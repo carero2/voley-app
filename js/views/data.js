@@ -11,6 +11,7 @@ import { audioUsage } from '../voice/db.js';
 import { kickQueue } from '../voice/queue.js';
 import { syncConfig, syncStatus, isAdmin, userName } from '../sync.js';
 import { openSyncSheet } from './sync-ui.js';
+import { VERSION } from '../version.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const slug = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'liga';
@@ -79,6 +80,11 @@ export function renderData(el, { query = {} } = {}) {
         <span class="s-icon" aria-hidden="true">📱</span>
         <span class="grow">Este dispositivo<span class="s-sub" id="s-usage">${plural(clubs().length, 'liga', 'ligas')} · ${plural(events, 'acción', 'acciones')} en «${d.name}»</span></span>
       </div>
+      <button class="settings-row" id="s-update">
+        <span class="s-icon" aria-hidden="true">⟳</span>
+        <span class="grow">Buscar actualización<span class="s-sub">Versión ${VERSION}</span></span>
+        <span class="s-chev" aria-hidden="true">›</span>
+      </button>
     </section>
     <p class="settings-note">${cfg
       ? 'Los partidos de esta liga se comparten con el equipo a través del servidor.'
@@ -88,6 +94,7 @@ export function renderData(el, { query = {} } = {}) {
   el.querySelector('#s-server').addEventListener('click', () => openSyncSheet(rerender));
   el.querySelector('#s-transfer').addEventListener('click', () => openTransferSheet(rerender));
   el.querySelector('#s-voice').addEventListener('click', () => openVoiceSheet(rerender));
+  el.querySelector('#s-update').addEventListener('click', checkUpdate);
   audioUsage().then(({ bytes, count }) => {
     const info = el.querySelector('#s-usage');
     if (info && count) info.textContent += ` · ${count} audios de voz (${(bytes / 1048576).toFixed(1)} MB)`;
@@ -95,6 +102,33 @@ export function renderData(el, { query = {} } = {}) {
   if (query.servidor) {
     history.replaceState(null, '', '#/datos');
     openSyncSheet(rerender);
+  }
+}
+
+// Busca una versión nueva de la app. Si la hay, se instala y la app se recarga sola (app.js); si no, se
+// recarga igualmente sin la copia guardada, por si el móvil se había quedado con archivos viejos.
+async function checkUpdate() {
+  if (navigator.onLine === false) { toast('Sin conexión: no se puede comprobar ahora'); return; }
+  toast('Buscando actualización…');
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+    if (reg?.installing || reg?.waiting) {
+      reg.waiting?.postMessage('skipWaiting');
+      toast('Instalando la versión nueva…');
+      setTimeout(() => location.reload(), 2500);
+      return;
+    }
+    const res = await fetch(`./js/version.js?t=${Date.now()}`, { cache: 'no-store' });
+    const latest = (await res.text()).match(/VERSION = '([^']+)'/)?.[1];
+    if (latest && latest !== VERSION) {
+      if (window.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+      location.reload();
+      return;
+    }
+    toast(`Ya tienes la última versión (${VERSION})`);
+  } catch {
+    toast('Sin conexión: no se puede comprobar ahora');
   }
 }
 
