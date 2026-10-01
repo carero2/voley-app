@@ -130,9 +130,11 @@ const REASONS = [
   { id: 'ataque', label: 'Ataque', own: true },
   { id: 'bloqueo', label: 'Bloqueo', own: true },
   { id: 'error_saque', label: 'Error de saque', own: false },
-  { id: 'error_ataque', label: 'Error de ataque', own: false },
-  { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false },
-  { id: 'extra', label: '+1 (otro error / sin analizar)', own: null },
+  { id: 'error', label: 'Error', own: false },
+  { id: 'extra', label: 'Sin analizar', own: null },
+  // Etiquetas de versiones anteriores (solo para mostrarlas).
+  { id: 'error_ataque', label: 'Error de ataque', own: false, legacy: true },
+  { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false, legacy: true },
 ];
 let pending = null; // punto marcado a falta de elegir el motivo
 
@@ -162,7 +164,7 @@ function askReason(side) {
   pending = { side, t: Math.round(video.currentTime * 100) / 100 };
   const { server } = serverAt(pending.t);
   const other = side === 'A' ? 'B' : 'A';
-  const list = REASONS.filter((r) => !server || (r.id === 'ace' ? server === side : r.id === 'error_saque' ? server === other : true));
+  const list = REASONS.filter((r) => !r.legacy && (!server || (r.id === 'ace' ? server === side : r.id === 'error_saque' ? server === other : true)));
   $('#reasonTitle').textContent = `Punto ${side}: ¿cómo? (teclas 1-${list.length}, Esc cancela)`;
   $('#reasonButtons').innerHTML = list.map((r, i) => `<button class="reason ${side === 'A' ? 'pa' : 'pb'}" data-how="${r.id}">${i + 1}. ${r.own === false ? `${r.label} de ${other}` : r.label}</button>`).join('')
     + '<button data-how="">Cancelar</button>';

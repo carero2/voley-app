@@ -25,10 +25,10 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Rotación automática en cada side-out; el marcador muestra quién saca y la rotación actual.
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
 - **Modo sencillo** (por defecto al crear un partido): en cada punto solo se pulsa qué equipo lo gana y cómo
-  (ace, ataque, bloqueo, error de saque, error de ataque o error de recepción/defensa del contrario). Solo se ofrecen
-  los motivos posibles (ace del que saca, error de saque del que saca). **+1** suma un punto sin motivo (otro error o
-  un punto que no se apuntó): cuenta en el marcador pero no en las estadísticas. La rotación se corrige con ↺ ↻ y la
-  casilla «Contar rotación» deja fuera de las estadísticas por rotación los puntos en los que no se está seguro.
+  (ace, ataque, bloqueo, error de saque o error del contrario). Solo se ofrecen los motivos posibles (ace del que
+  saca, error de saque del que saca). **Sin analizar** suma un punto sin motivo: cuenta en el marcador pero no en
+  las estadísticas. La rotación actual (R1…R6) se corrige con ↺ ↻; desmarcando «Contar rotación» los puntos quedan
+  fuera de las estadísticas por rotación y se ofrecen todos los motivos (por si se dejaron puntos sin apuntar).
   La hora de cada punto queda guardada para sincronizar con el vídeo.
 - **Al terminar cada set**, antes de la alineación del siguiente, acceso directo a las estadísticas del set.
 - **Resumen con gráficos**: cómo se gana cada punto comparado con el rival, side-out y break de los dos equipos,

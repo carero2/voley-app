@@ -428,7 +428,7 @@ function renderLive(el, match, st, rerender) {
       <button class="btn btn-ghost" id="menu" aria-label="Opciones">⋯</button>
     </header>
 
-    <section class="scoreboard">
+    <section class="scoreboard sb-simple">
       <div class="sb-team">
         <span class="sb-name">${st.serving === 'us' ? '🏐 ' : ''}${teamName}</span>
         <span class="sb-score">${st.us}</span>
@@ -436,7 +436,6 @@ function renderLive(el, match, st, rerender) {
       <div class="sb-mid">
         <span class="sb-set">Set ${match.currentSet}</span>
         <span class="sb-sets">${won} - ${lost}</span>
-        <span class="sb-rot">R${rot}</span>
       </div>
       <div class="sb-team">
         <span class="sb-name">${st.serving === 'them' ? '🏐 ' : ''}${match.opponent}</span>
@@ -667,7 +666,7 @@ function renderVoiceLive(el, match, st, rerender) {
       <button class="btn btn-ghost" id="menu" aria-label="Opciones">⋯</button>
     </header>
 
-    <section class="scoreboard">
+    <section class="scoreboard sb-simple">
       <div class="sb-team">
         <span class="sb-name">${st.serving === 'us' ? '🏐 ' : ''}${teamName}</span>
         <span class="sb-score">${st.us}</span>
@@ -675,7 +674,6 @@ function renderVoiceLive(el, match, st, rerender) {
       <div class="sb-mid">
         <span class="sb-set">Set ${match.currentSet}</span>
         <span class="sb-sets">${won} - ${lost}</span>
-        <span class="sb-rot">R${rot}</span>
       </div>
       <div class="sb-team">
         <span class="sb-name">${st.serving === 'them' ? '🏐 ' : ''}${match.opponent}</span>
@@ -869,9 +867,10 @@ function renderSimpleLive(el, match, st, rerender) {
     .slice(-8)
     .reverse();
   // Solo los motivos posibles: ace del equipo que saca, error de saque del que saca.
-  const column = (team) => POINT_REASONS.filter((r) => reasonAvailable(team, r.id, st.serving)).map((r) => html`
+  // Sin contar la rotación (p. ej. se dejaron de apuntar puntos) no se sabe seguro quién saca: todos los motivos.
+  const column = (team) => POINT_REASONS.filter((r) => reasonAvailable(team, r.id, st.serving, match.ignoreRot)).map((r) => html`
     <button class="btn ${team === 'us' ? 'tone-good' : 'tone-error'} ${r.noStats ? 'btn-extra' : ''}" data-point="${team}" data-how="${r.id}">
-      ${reasonLabel(team, r.id)}${r.hint ? html`<span class="small muted">${r.hint}</span>` : ''}
+      ${reasonLabel(team, r.id)}
     </button>`);
 
   el.innerHTML = html`
@@ -881,7 +880,7 @@ function renderSimpleLive(el, match, st, rerender) {
       <button class="btn btn-ghost" id="menu" aria-label="Opciones">⋯</button>
     </header>
 
-    <section class="scoreboard">
+    <section class="scoreboard sb-simple">
       <div class="sb-team">
         <span class="sb-name">${st.serving === 'us' ? '🏐 ' : ''}${teamName}</span>
         <span class="sb-score">${st.us}</span>
@@ -889,7 +888,6 @@ function renderSimpleLive(el, match, st, rerender) {
       <div class="sb-mid">
         <span class="sb-set">Set ${match.currentSet}</span>
         <span class="sb-sets">${won} - ${lost}</span>
-        <span class="sb-rot">R${rot}</span>
       </div>
       <div class="sb-team">
         <span class="sb-name">${st.serving === 'them' ? '🏐 ' : ''}${match.opponent}</span>
@@ -904,18 +902,18 @@ function renderSimpleLive(el, match, st, rerender) {
         <button class="btn btn-primary" id="close-set">Cerrar set</button>
       </div>` : ''}
 
-    <div class="rot-bar">
-      <span class="small muted">${st.serving === 'us'
+    <div class="rot-bar small">
+      <span class="muted">${st.serving === 'us'
         ? `Saca ${teamName}${server ? ` · ${server.number} ${server.name}` : ''}`
         : `Saca ${match.opponent}`}</span>
       <span class="rot-fix">
         <button class="btn btn-small" data-rot="menos" aria-label="Rotación anterior">↺</button>
-        <b>R${rot}</b>
+        <span class="rot-now" aria-label="Rotación actual">R${rot}</span>
         <button class="btn btn-small" data-rot="mas" aria-label="Rotación siguiente">↻</button>
       </span>
-      <label class="rot-check small"><input type="checkbox" id="count-rot" ${match.ignoreRot ? '' : 'checked'} /> Contar rotación</label>
+      <label class="rot-check"><input type="checkbox" id="count-rot" ${match.ignoreRot ? '' : 'checked'} /> Contar rotación</label>
     </div>
-    ${match.ignoreRot ? html`<p class="small muted center">Los puntos no cuentan en las estadísticas por rotación hasta que vuelvas a marcar la casilla (corrige la rotación con ↺ ↻ si hace falta).</p>` : ''}
+    ${match.ignoreRot ? html`<p class="small muted center">Sin contar la rotación: salen todos los motivos y los puntos no cuentan en las estadísticas por rotación. Corrige la rotación con ↺ ↻ y vuelve a marcar la casilla.</p>` : ''}
 
     <section class="simple-grid">
       <div class="simple-col">

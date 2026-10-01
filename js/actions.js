@@ -93,15 +93,20 @@ export const POINT_REASONS = [
   { id: 'ataque', label: 'Ataque', own: true },
   { id: 'bloqueo', label: 'Bloqueo', own: true },
   { id: 'error_saque', label: 'Error de saque', own: false },
-  { id: 'error_ataque', label: 'Error de ataque', own: false },
-  { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false },
-  { id: 'extra', label: '+1', hint: 'otro error / sin analizar', own: null, noStats: true },
+  // Cualquier otro error del que pierde el punto (ataque fuera o a la red, recepción o defensa…).
+  { id: 'error', label: 'Error', own: false },
+  { id: 'extra', label: 'Sin analizar', own: null, noStats: true },
+  // Motivos de versiones anteriores: se siguen mostrando en los partidos antiguos.
+  { id: 'error_ataque', label: 'Error de ataque', own: false, legacy: true },
+  { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false, legacy: true },
   { id: 'error_otro', label: 'Otro error', own: false, legacy: true },
 ];
 // Motivos posibles según quién saca: solo hay ace del equipo que saca y error de saque del que saca.
-export function reasonAvailable(winner, id, serving) {
+// Con `all` (rotación sin contar: puede que falten puntos y no se sepa quién saca) se ofrecen todos.
+export function reasonAvailable(winner, id, serving, all = false) {
   const r = POINT_REASONS.find((x) => x.id === id);
   if (!r || r.legacy) return false;
+  if (all) return true;
   if (id === 'ace') return winner === serving;
   if (id === 'error_saque') return winner !== serving;
   return true;

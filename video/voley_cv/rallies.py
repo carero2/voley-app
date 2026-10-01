@@ -36,9 +36,14 @@ SET_BREAK = 60.0  # s: una pausa así entre puntos es un cambio de set (y de cam
 OTHER = {"A": "B", "B": "A"}
 REASONS = {
     "ace": ("Ace", True), "ataque": ("Ataque", True), "bloqueo": ("Bloqueo", True),
-    "error_saque": ("Error de saque", False), "error_ataque": ("Error de ataque", False),
-    "error_recepcion": ("Error de recepción/defensa", False), "extra": ("+1 (otro error)", None),
+    "error_saque": ("Error de saque", False), "error": ("Error", False), "extra": ("Sin analizar", None),
 }
+# Etiquetas antiguas: errores de ataque y de recepción/defensa ahora son un solo «error».
+LEGACY_HOW = {"error_ataque": "error", "error_recepcion": "error", "error_otro": "error"}
+
+
+def norm_how(how):
+    return LEGACY_HOW.get(how, how)
 
 
 # ---------- Del análisis a los puntos ----------
@@ -209,7 +214,7 @@ def _cause(r, t):
     if len(cross) == 1 and srv == x:  # el último balón que pasó fue el saque
         return "ace" if w == x else "error_saque"
     if w == y:  # lo mandó el otro y gana este: el balón se fue fuera
-        return "error_saque" if len(cross) == 1 else "error_ataque"
+        return "error_saque" if len(cross) == 1 else "error"
     # Gana quien mandó el último balón: el otro no pudo devolverlo.
     if len(cross) >= 2:
         prev = cross[-2]
@@ -217,9 +222,7 @@ def _cause(r, t):
             return "bloqueo"
     # Toques del que no pudo devolverlo (con un jugador cerca: los botes en el suelo no cuentan).
     after = [x_ for x_ in r["touches"] if t[x_["i"]] > last["t"] and x_["side"] == y and x_["x"] is not None]
-    if len(after) <= 1:
-        return "ataque"
-    return "error_recepcion" if len(after) == 2 else "error_ataque"
+    return "ataque" if len(after) <= 1 else "error"
 
 
 # ---------- Comparación con los puntos marcados a mano ----------
@@ -241,7 +244,7 @@ def compare(pred: list, labels: list) -> dict:
             used.add(best)
         rows.append({
             "punto": n, "set": lab["set"], "inicio": round(lab["start"], 1), "fin": round(lab["end"], 1),
-            "saca": lab.get("server"), "gana": lab["winner"], "como": lab.get("how"),
+            "saca": lab.get("server"), "gana": lab["winner"], "como": norm_how(lab.get("how")),
             "video_inicio": p["start"] if p else None, "video_fin": p["end"] if p else None,
             "video_saca": p["server"] if p else None, "video_saca_por": p.get("server_from") if p else None,
             "video_fin_por": p.get("end_by") if p else None, "video_gana": p["winner"] if p else None,
@@ -360,7 +363,7 @@ def with_app(analysis: dict, video_rallies: list, app_points: list) -> dict:
         prev_end = app_points[n - 2]["end"] if n > 1 else -1e9
         cand = [s for s in starts if prev_end < s < p["end"]]
         start = cand[-1] if cand else None
-        row = {"punto": n, "fin_app": p["end"], "gana": p["winner"], "como": p.get("how"), "saca": p.get("server"),
+        row = {"punto": n, "fin_app": p["end"], "gana": p["winner"], "como": norm_how(p.get("how")), "saca": p.get("server"),
                "inicio_video": start, "duracion": round(p["end"] - start, 1) if start is not None else None,
                "pasos_red": None, "zona_recepcion": None, "zona_ataque": None}
         if start is not None:

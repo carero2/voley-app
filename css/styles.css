@@ -560,6 +560,7 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
   .pz-number { font-size: 1.6rem; }
   .rival-zone { min-height: 40px; }
   .sb-score { font-size: 4rem; }
+  .scoreboard.sb-simple .sb-score { font-size: 5.5rem; }
   .sheet {
     left: 50%; right: auto; bottom: auto; top: 50%;
     transform: translate(-50%, -50%);
@@ -616,10 +617,15 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 .simple-col .btn .small { display: block; font-size: .72rem; }
 .score-tag { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3.2em; text-align: center; border-radius: 6px; padding: 2px 6px; }
 .stats-table td.left { text-align: left; white-space: normal; }
-.rot-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 6px 0 4px; }
-.rot-fix { display: inline-flex; align-items: center; gap: 6px; }
-.rot-fix .btn-small { min-height: 34px; min-width: 38px; padding: 0 8px; }
-.rot-check { display: inline-flex; align-items: center; gap: 6px; }
+.rot-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; margin: 4px 0 2px; }
+.rot-fix { display: inline-flex; align-items: center; gap: 4px; }
+.rot-fix .btn-small { min-height: 30px; min-width: 32px; padding: 0 6px; font-size: .9rem; }
+.rot-now { font-weight: 700; min-width: 2.2em; text-align: center; }
+.rot-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.rot-check input { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; accent-color: var(--primary); }
+/* Modo sencillo: el marcador manda. */
+.scoreboard.sb-simple .sb-score { font-size: 4.2rem; }
+.scoreboard.sb-simple .sb-sets { font-size: 1.5rem; }
 .simple-col .btn-extra { background: var(--surface-2); color: var(--text); }
 
 /* Resumen: barras emparejadas (nosotros = serie 1, rival = serie 2) y evolución del marcador. */

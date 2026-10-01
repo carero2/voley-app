@@ -111,12 +111,14 @@ function summaryTab(events, match) {
     </div>`;
   const REASON_ROWS = [
     ['ace', 'Ace'], ['ataque', 'Ataque'], ['bloqueo', 'Bloqueo'],
-    ['error_saque', 'Error de saque del contrario'], ['error_ataque', 'Error de ataque del contrario'],
-    ['error_recepcion', 'Error de recepción/defensa del contrario'], ['error_otro', 'Otro error del contrario'],
+    ['error_saque', 'Error de saque del contrario'], ['error', 'Error del contrario'],
+    ['error_ataque', 'Error de ataque del contrario'], ['error_recepcion', 'Error de recepción/defensa del contrario'],
+    ['error_otro', 'Otro error del contrario'],
   ];
+  const LEGACY = ['error_ataque', 'error_recepcion', 'error_otro']; // solo en partidos antiguos
   const reasonRows = REASON_ROWS
     .map(([id, label]) => ({ id, label, us: reasons.us[id] || 0, them: reasons.them[id] || 0 }))
-    .filter((r) => r.id !== 'error_otro' || r.us || r.them); // «Otro error» solo existe en partidos antiguos
+    .filter((r) => !LEGACY.includes(r.id) || r.us || r.them);
   const soBr = [
     { label: 'Side-out', us: sr.us.sideOut, them: sr.them.sideOut,
       tipUs: `${sr.us.so} de ${sr.us.recv} recibiendo`, tipThem: `${sr.them.so} de ${sr.them.recv} recibiendo` },
