@@ -224,12 +224,13 @@ md("""## Puntos: solo vídeo frente a tus etiquetas
 Saca del vídeo, sin la app, dónde empieza y acaba cada punto, quién saca, quién gana y cómo, y lo compara con
 lo que marcaste en la herramienta de etiquetar. Así se ve qué parte del registro en directo puede hacer el vídeo.
 
-- **ETIQUETAS**: ruta del `.json` descargado de la herramienta (arrástralo al icono de carpeta de la izquierda;
-  si lo dejas vacío, la celda te pide que lo subas).
-- **PESOS**: el modelo reentrenado (vacío = modelo sin entrenar). Puedes pasarla con los dos y comparar.
-- Hace falta haber calibrado el campo (celda 3) en esta sesión.
-- Analiza el vídeo entero: con CADA = 2, en una T4 tarda unos 30-40 min para 14 min de vídeo. Si repites la
-  celda con el mismo modelo, reutiliza las detecciones y tarda segundos.""")
+- **ETIQUETAS**: ruta del `.json` de la herramienta (vacío = la celda te pide que lo subas).
+- **PESOS**: ruta del modelo reentrenado (vacío = modelo sin entrenar). Si lo subes una vez a tu Google Drive
+  (carpeta `voley/modelo`), la ruta es `/content/drive/MyDrive/voley/modelo/checkpoint_best_ema.pth` y no hay
+  que volver a subirlo en cada sesión.
+- **GUARDAR_EN_DRIVE**: el trabajo se guarda en tu Drive (`voley/resultados`) minuto a minuto. Si la sesión se
+  corta, al repetir la celda sigue donde se quedó. También guarda allí la calibración del campo.
+- Con CADA = 2, en una T4 tarda unos 30-40 min para 14 min de vídeo. Sin GPU no es viable (muchas horas).""")
 
 code("""#@title 9. Puntos: solo vídeo frente a tus etiquetas
 ETIQUETAS = ''  #@param {type:"string"}
@@ -237,16 +238,32 @@ PESOS = ''  #@param {type:"string"}
 MODELO = 'small'  #@param ["nano", "small", "medium"]
 CADA = 2  #@param {type:"integer"}
 MOSAICOS = '3x2'  #@param ["1x1", "2x1", "3x2", "4x3"]
+GUARDAR_EN_DRIVE = True  #@param {type:"boolean"}
 
+import shutil
+SALIDA = CARPETA
+if GUARDAR_EN_DRIVE:
+    from google.colab import drive
+    drive.mount('/content/drive')
+    SALIDA = '/content/drive/MyDrive/voley/resultados'
+    os.makedirs(SALIDA, exist_ok=True)
 CAMPO = f'{CARPETA}/campo.json'
-if not os.path.exists(CAMPO):
-    raise SystemExit('Falta calibrar el campo en esta sesión: ejecuta la celda 3 y marca puntos hasta pulsar «Listo».')
+if os.path.exists(CAMPO):
+    shutil.copy(CAMPO, f'{SALIDA}/campo.json')  # para la próxima sesión
+elif os.path.exists(f'{SALIDA}/campo.json'):
+    CAMPO = f'{SALIDA}/campo.json'
+    print('Uso la calibración guardada en', CAMPO, '(si moviste la cámara, repite la celda 3)')
+else:
+    raise SystemExit('Falta calibrar el campo: ejecuta la celda 3 y marca puntos hasta pulsar «Listo».')
+import torch
+if not torch.cuda.is_available():
+    print('AVISO: sin GPU esto tarda muchas horas. Mejor espera a tener GPU (Entorno de ejecución → Cambiar tipo → T4).')
 from voley_cv.pipeline import rallies_vs_labels
 if not ETIQUETAS:
     from google.colab import files as colab_files
     ETIQUETAS = os.path.abspath(next(iter(colab_files.upload())))
 c, r = map(int, MOSAICOS.split('x'))
-puntos, comparacion, texto = rallies_vs_labels(VIDEO, CAMPO, CARPETA, ETIQUETAS, CADA, MODELO, PESOS or None, (c, r))
+puntos, comparacion, texto = rallies_vs_labels(VIDEO, CAMPO, SALIDA, ETIQUETAS, CADA, MODELO, PESOS or None, (c, r))
 print(texto)""")
 
 code("""#@title 8. Descargar los resultados (.zip)

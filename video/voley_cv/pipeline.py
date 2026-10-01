@@ -80,20 +80,54 @@ def frames_for_labeling(video, court_path, out_dir, n=300, every=2.0, model="sma
     return export_training_frames(video, header, frames, court, out / "para_etiquetar", n)
 
 
+def detect_chunked(video, folder, start=0.0, end=None, stride=2, model="small", weights=None, tiles=(3, 2),
+                   chunk=60.0):
+    """Detecta por trozos de `chunk` segundos y guarda cada trozo en `folder` en cuanto acaba.
+    Si se corta (sesión de Colab, ordenador que se reinicia…), al repetir se salta los trozos ya hechos."""
+    import math
+    import os
+
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    info = video_info(video)
+    end = info["duration"] if end is None else min(end, info["duration"])
+    n = max(1, math.ceil((end - start) / chunk))
+    det, header, frames, secs = None, None, [], 0.0
+    for k in range(n):
+        s, e = start + k * chunk, min(end, start + (k + 1) * chunk)
+        part = folder / f"parte_{int(s):05d}-{int(e):05d}.jsonl"
+        if part.exists():
+            h, fr = load_detections(part)
+        else:
+            print(f"Trozo {k + 1}/{n}: {int(s)}-{int(e)} s")
+            det = det or Detector(model=model, weights=weights, ball_tiles=tiles)
+            tmp = part.with_suffix(".tmp")
+            h, fr = detect_segment(video, tmp, s, e, stride, model, weights, tiles, detector=det)
+            os.replace(tmp, part)  # el trozo solo cuenta cuando está completo
+        header = header or dict(h)
+        frames.extend(fr)
+        secs += h.get("processing_seconds") or 0.0
+    header["end_frame"] = int(end * header["fps"])
+    header["processing_seconds"] = round(secs, 1)
+    header["processing_fps"] = round(len(frames) / secs, 2) if secs else None
+    return header, frames
+
+
 def rallies_vs_labels(video, court_path, out_dir, labels_path, stride=2, model="small", weights=None, tiles=(3, 2),
                       start=0.0, end=None):
     """Vídeo entero (o un tramo): puntos sacados solo del vídeo y comparación con los marcados a mano.
-    Si ya hay detecciones de ese tramo con el mismo modelo y paso, se reutilizan (la detección es lo lento)."""
+    Las detecciones (lo lento) se guardan por trozos en `out_dir` y se reutilizan al repetir."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     name = f"{model}-{'propio' if weights else 'coco'}"
     tag = f"{int(start)}-{int(end)}s" if end is not None else f"{int(start)}s-fin"
-    det_path = out / f"detecciones_puntos_{tag}_{name}_cada{stride}.jsonl"
-    if det_path.exists():
-        header, frames = load_detections(det_path)
-        print("Reutilizo las detecciones de", det_path.name)
+    legacy = out / f"detecciones_puntos_{tag}_{name}_cada{stride}.jsonl"  # versión anterior: un solo archivo
+    if legacy.exists():
+        print("Reutilizo las detecciones de", legacy.name)
+        header, frames = load_detections(legacy)
     else:
-        header, frames = detect_segment(video, det_path, start, end, stride, model, weights, tiles)
+        header, frames = detect_chunked(video, out / f"detecciones_{Path(video).stem}_{name}_cada{stride}",
+                                        start, end, stride, model, weights, tiles)
     court = Court.load(court_path)
     analysis = analyze(header, frames, court)
     pred = infer_rallies(analysis, court)
