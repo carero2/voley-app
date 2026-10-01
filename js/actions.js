@@ -95,7 +95,7 @@ export const POINT_REASONS = [
   { id: 'error_saque', label: 'Error de saque', own: false },
   // Cualquier otro error del que pierde el punto (ataque fuera o a la red, recepción o defensa…).
   { id: 'error', label: 'Error', own: false },
-  { id: 'extra', label: 'Sin analizar', own: null, noStats: true },
+  { id: 'extra', label: '+1 (no sé)', own: null, noStats: true }, // suma el punto sin motivo
   // Motivos de versiones anteriores: se siguen mostrando en los partidos antiguos.
   { id: 'error_ataque', label: 'Error de ataque', own: false, legacy: true },
   { id: 'error_recepcion', label: 'Error de recepción/defensa', own: false, legacy: true },

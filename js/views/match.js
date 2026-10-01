@@ -869,7 +869,7 @@ function renderSimpleLive(el, match, st, rerender) {
   // Solo los motivos posibles: ace del equipo que saca, error de saque del que saca.
   // Sin contar la rotación (p. ej. se dejaron de apuntar puntos) no se sabe seguro quién saca: todos los motivos.
   const column = (team) => POINT_REASONS.filter((r) => reasonAvailable(team, r.id, st.serving, match.ignoreRot)).map((r) => html`
-    <button class="btn ${team === 'us' ? 'tone-good' : 'tone-error'} ${r.noStats ? 'btn-extra' : ''}" data-point="${team}" data-how="${r.id}">
+    <button class="btn ${team === 'us' ? 'tone-good' : 'tone-error'}" data-point="${team}" data-how="${r.id}">
       ${reasonLabel(team, r.id)}
     </button>`);
 

@@ -626,7 +626,6 @@ body.is-live #toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
 /* Modo sencillo: el marcador manda. */
 .scoreboard.sb-simple .sb-score { font-size: 4.2rem; }
 .scoreboard.sb-simple .sb-sets { font-size: 1.5rem; }
-.simple-col .btn-extra { background: var(--surface-2); color: var(--text); }
 
 /* Resumen: barras emparejadas (nosotros = serie 1, rival = serie 2) y evolución del marcador. */
 .viz-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; color: var(--text-2); margin: 0 0 8px; }

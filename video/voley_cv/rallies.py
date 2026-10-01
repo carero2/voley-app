@@ -36,7 +36,7 @@ SET_BREAK = 60.0  # s: una pausa así entre puntos es un cambio de set (y de cam
 OTHER = {"A": "B", "B": "A"}
 REASONS = {
     "ace": ("Ace", True), "ataque": ("Ataque", True), "bloqueo": ("Bloqueo", True),
-    "error_saque": ("Error de saque", False), "error": ("Error", False), "extra": ("Sin analizar", None),
+    "error_saque": ("Error de saque", False), "error": ("Error", False), "extra": ("+1 (no sé)", None),
 }
 # Etiquetas antiguas: errores de ataque y de recepción/defensa ahora son un solo «error».
 LEGACY_HOW = {"error_ataque": "error", "error_recepcion": "error", "error_otro": "error"}

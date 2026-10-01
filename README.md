@@ -26,7 +26,7 @@ Es una web estática (HTML + CSS + JavaScript, sin dependencias ni compilación)
   - Cambios de jugador, *Otra acción…* para jugadas fuera de la secuencia, deshacer (también reabre un set cerrado por error) y aviso de fin de set (25, o 15 en el tie-break, con 2 de diferencia).
 - **Modo sencillo** (por defecto al crear un partido): en cada punto solo se pulsa qué equipo lo gana y cómo
   (ace, ataque, bloqueo, error de saque o error del contrario). Solo se ofrecen los motivos posibles (ace del que
-  saca, error de saque del que saca). **Sin analizar** suma un punto sin motivo: cuenta en el marcador pero no en
+  saca, error de saque del que saca). **+1 (no sé)** suma un punto sin motivo: cuenta en el marcador pero no en
   las estadísticas. La rotación actual (R1…R6) se corrige con ↺ ↻; desmarcando «Contar rotación» los puntos quedan
   fuera de las estadísticas por rotación y se ofrecen todos los motivos (por si se dejaron puntos sin apuntar).
   La hora de cada punto queda guardada para sincronizar con el vídeo.
