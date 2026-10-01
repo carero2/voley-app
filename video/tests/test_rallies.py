@@ -35,7 +35,7 @@ def synthetic_match(court):
     pa = player_box(court, 5, 4.5)
     pb = player_box(court, 13, 4.5)
     net_a = player_box(court, 8.4, 3)
-    persons = [srv_a, srv_b, pa, pb, net_a]
+    persons = [srv_a, pa, pb, net_a]  # el sacador de B no se detecta (lejos, tapado…)
     track = []  # posición del balón por fotograma (None = no se ve)
 
     def pause(secs):
@@ -50,9 +50,12 @@ def synthetic_match(court):
     track.extend(flight(hand(srv_a), floor(court, 14, 5), 1.0))
     pause(10)
     # Punto 2: vuelve a sacar A; B recibe y ataca, el balón cae en A: punto de ataque de B.
+    # Después bota y se lo pasan por debajo de la red al que va a sacar (eso ya no es el punto).
     hold(srv_a)
     track.extend(flight(hand(srv_a), hand(pb), 1.0))
-    track.extend(flight(hand(pb), floor(court, 4, 4), 0.5, arc=80)[1:])
+    track.extend(flight(hand(pb), floor(court, 2, 1), 0.5, arc=80)[1:])
+    track.extend(flight(floor(court, 2, 1), floor(court, 3.5, 0.5), 0.5, arc=60)[1:])
+    track.extend(flight(floor(court, 3.5, 0.5), floor(court, 15, 5), 1.0, arc=20)[1:])
     pause(10)
     # Punto 3: saca B y la manda fuera por detrás del fondo de A: error de saque de B.
     hold(srv_b)
@@ -106,6 +109,8 @@ def test_rallies_from_video():
     assert [r["winner"] for r in pred] == ["A", "B", "A", "A"], pred
     assert [r["winner_from"] for r in pred] == ["saque siguiente"] * 3 + ["final del balón"]
     assert [r["how"] for r in pred] == ["ace", "ataque", "error_saque", "bloqueo"], pred
+    assert pred[1]["end_by"] == "bote" and pred[1]["end_side"] == "A"  # no cuenta el pase por debajo de la red
+    assert pred[2]["server_from"] == "balón al fondo"  # sacador de B sin detectar
     with tempfile.TemporaryDirectory() as tmp:
         c = compare(pred, load_rallies(labels_file(tmp)))
     assert c["found"] == 4 and c["extra_video"] == 0

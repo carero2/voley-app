@@ -26,8 +26,11 @@ MERGE_GAP = 2.0  # s sin balón en movimiento que se toleran dentro de un punto 
 MIN_DURATION = 0.8  # s desde el saque: un ace rápido dura poco más de 1 s
 SERVE_LINE = 1.0  # m: el sacador está a menos de esto de la línea de fondo (o detrás)
 SERVE_BEFORE_CROSS = 2.5  # s como máximo entre el golpe de saque y el paso de red
+SERVE_DEEP = 3.0  # m desde la línea de fondo: un balón que sale de ahí y pasa la red es un saque
 SERVE_NEAR = 1.0  # distancia balón-jugador (en alturas de su caja) para decir que el balón está en sus manos
 BLOCK_WINDOW = 0.8  # s: un balón que vuelve tan rápido tras un ataque es un bloqueo
+BOUNCE_FEET = -0.85  # altura del balón respecto al jugador más cercano (−1 = sus pies): por debajo, es el suelo
+BOUNCE_NET_GAP = 0.3  # s: un cambio brusco tan cerca de un paso de red es la red o el bloqueo, no un bote
 SET_BREAK = 60.0  # s: una pausa así entre puntos es un cambio de set (y de campo)
 IN_MARGIN = 0.3  # m de margen para decir que el balón cayó dentro
 
@@ -63,7 +66,7 @@ def infer_rallies(analysis: dict, court: Court) -> list:
     rallies = []
     for i0, i1 in segs:
         cross = [c | {"t": float(t[c["i"]])} for c in crossings if i0 <= c["i"] <= i1]
-        serve = _find_serve(frames, t, i0, cross)
+        serve = _find_serve(frames, t, i0, cross, court)
         if serve is None:
             # Sin saque: balón que se pasan entre puntos, o un trozo del punto anterior (balón perdido un rato).
             if rallies and t[i0] - rallies[-1]["end"] <= 2 * MERGE_GAP:
@@ -72,19 +75,31 @@ def infer_rallies(analysis: dict, court: Court) -> list:
                 continue
             if len(cross) < 2 or t[i1] - t[i0] < 4.0:
                 continue
-            serve = {"i": i0, "side": None, "cross_k": 0}
+            # Punto largo sin saque visto: se supone que lo sacó quien hizo el primer paso de red.
+            serve = {"i": i0, "side": cross[0]["from"], "cross_k": 0, "src": "primer paso de red"}
         start_i = serve["i"]
         if t[i1] - t[start_i] < MIN_DURATION:
             continue
         rallies.append({"i0": start_i, "i1": i1, "start": round(float(t[start_i]), 2), "end": round(float(t[i1]), 2),
-                        "server": serve["side"], "cross": cross[serve["cross_k"]:]})
+                        "server": serve["side"], "server_from": serve["src"], "cross": cross[serve["cross_k"]:]})
 
-    for k, r in enumerate(rallies):
+    for r in rallies:
+        # El punto acaba en el primer bote: el balón cambia de golpe sin ningún jugador cerca y lejos de la red.
+        # Lo de después (rebotes, pasárselo por debajo de la red al que va a sacar) no cuenta.
+        bounce = _first_bounce(r, touches, t, frames)
+        r["end_by"] = "bote" if bounce is not None else "balón perdido"
+        if bounce is not None:
+            r["i1"], r["end"] = bounce, round(float(t[bounce]), 2)
+            r["cross"] = [c for c in r["cross"] if c["i"] <= bounce]
         r["touches"] = [x for x in touches if r["i0"] <= x["i"] <= r["i1"]]
         r.update(_ending(frames, r, court))
+
+    for k, r in enumerate(rallies):
         nxt = rallies[k + 1] if k + 1 < len(rallies) else None
         new_set = nxt is None or nxt["start"] - r["end"] > SET_BREAK
-        r["winner_next_serve"] = None if new_set else nxt["server"]
+        # Solo si el saque siguiente se vio de verdad (no supuesto por el primer paso de red).
+        sure = nxt is not None and nxt["server_from"] != "primer paso de red"
+        r["winner_next_serve"] = nxt["server"] if not new_set and sure else None
         r["winner"] = r["winner_next_serve"] or r["winner_ball"]
         r["winner_from"] = "saque siguiente" if r["winner_next_serve"] else "final del balón" if r["winner_ball"] else None
         r["how"] = _cause(r)
@@ -141,16 +156,54 @@ def _server_near(fr):
     return None
 
 
-def _find_serve(frames, t, i0, cross):
-    """Primer paso de red precedido (poco antes) por el balón en manos de un jugador en su línea de fondo."""
+def _find_serve(frames, t, i0, cross, court: Court):
+    """El saque es el primer paso de red que viene del fondo de un campo: justo antes, el balón estaba en manos
+    de un jugador en su línea de fondo, o al menos se vio en el fondo de ese campo (el sacador puede no
+    detectarse: está lejos, tapado o fuera de la imagen)."""
     for k, c in enumerate(cross):
         j = c["i"] - 1
+        deep = None
         while j >= 0 and t[c["i"]] - t[j] <= SERVE_BEFORE_CROSS:
             side = _server_near(frames[j])
             if side == c["from"]:
-                return {"i": j, "side": side, "cross_k": k}
+                return {"i": j, "side": side, "cross_k": k, "src": "sacador"}
+            b = frames[j]["ball"]
+            if b and frames[j]["ball_side"] == c["from"]:
+                x = float(court.to_court([(b["u"], b["v"])])[0][0])
+                if (x <= SERVE_DEEP if c["from"] == "A" else x >= LENGTH - SERVE_DEEP):
+                    deep = j
             j -= 1
+        if deep is not None:
+            return {"i": deep, "side": c["from"], "cross_k": k, "src": "balón al fondo"}
     return None
+
+
+def _first_bounce(r, touches, t, frames):
+    """Primer bote en el suelo: cambio brusco del balón que baja y pasa a subir, sin jugador cerca (o a la altura
+    de los pies del jugador más cercano), y que no es la red ni un bloqueo (lejos de un paso de red)."""
+    if not r["cross"]:
+        return None
+    first_cross = r["cross"][0]["i"]
+    for x in touches:
+        if x["i"] <= first_cross or x["i"] > r["i1"]:
+            continue
+        low = x["x"] is None or (x["height"] is not None and x["height"] <= BOUNCE_FEET)
+        if not low or not _down_then_up(frames, x["i"], t):
+            continue
+        if any(abs(t[x["i"]] - c["t"]) < BOUNCE_NET_GAP for c in r["cross"]):
+            continue
+        return x["i"]
+    return None
+
+
+def _down_then_up(frames, i, t, window=0.12):
+    """En la imagen, el balón bajaba (v crece) antes del cambio y sube (v decrece) después."""
+    def pos(j):
+        return frames[j]["ball"]["v"] if 0 <= j < len(frames) and frames[j]["ball"] else None
+
+    k = max(1, int(round(window / max(1e-6, t[1] - t[0]))))
+    before, here, after = pos(i - k), pos(i), pos(i + k)
+    return None not in (before, here, after) and here - before > 0 and after - here < 0
 
 
 def _ending(frames, r, court: Court):
@@ -219,7 +272,8 @@ def compare(pred: list, labels: list) -> dict:
             "punto": n, "set": lab["set"], "inicio": round(lab["start"], 1), "fin": round(lab["end"], 1),
             "saca": lab.get("server"), "gana": lab["winner"], "como": lab.get("how"),
             "video_inicio": p["start"] if p else None, "video_fin": p["end"] if p else None,
-            "video_saca": p["server"] if p else None, "video_gana": p["winner"] if p else None,
+            "video_saca": p["server"] if p else None, "video_saca_por": p.get("server_from") if p else None,
+            "video_fin_por": p.get("end_by") if p else None, "video_gana": p["winner"] if p else None,
             "video_gana_por": p["winner_from"] if p else None, "video_como": p["how"] if p else None,
             "pasos_red": p["crossings"] if p else None, "toques": p["touches"] if p else None,
         })
@@ -280,7 +334,8 @@ def comparison_text(c: dict) -> str:
     ]
     for how, got in sorted(c["confusion"].items()):
         lines.append(f"    {name(how):<28} " + ", ".join(f"{name(g)} ×{n}" for g, n in sorted(got.items(), key=lambda x: -x[1])))
-    lines += ["", "punto set  inicio vídeo    fin  vídeo  saca v.  gana v. (por)            motivo → vídeo"]
+    lines += ["", "punto set  inicio vídeo    fin  vídeo  saca v.  gana v. (por)            motivo → vídeo"
+              "   [saque visto por · fin por]"]
     for r in c["rows"]:
         vi = "—" if r["video_inicio"] is None else f"{r['video_inicio']:.1f}"
         vf = "—" if r["video_fin"] is None else f"{r['video_fin']:.1f}"
@@ -289,5 +344,6 @@ def comparison_text(c: dict) -> str:
             f"{r['punto']:>5} {r['set']:>3} {r['inicio']:>7.1f} {vi:>6} {r['fin']:>6.1f} {vf:>6}"
             f"  {r['saca'] or '?':>2} {r['video_saca'] or '?':>2}"
             f"  {r['gana'] or '?':>2} {r['video_gana'] or '?':>2} {ok} ({r['video_gana_por'] or '—'})"
-            f"  {name(r['como'])} → {name(r['video_como']) if r['video_como'] else '—'}")
+            f"  {name(r['como'])} → {name(r['video_como']) if r['video_como'] else '—'}"
+            + (f"   [{r['video_saca_por'] or '—'} · {r['video_fin_por'] or '—'}]" if r["video_inicio"] is not None else ""))
     return "\n".join(lines)

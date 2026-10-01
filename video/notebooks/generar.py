@@ -230,7 +230,9 @@ lo que marcaste en la herramienta de etiquetar. Así se ve qué parte del regist
   que volver a subirlo en cada sesión.
 - **GUARDAR_EN_DRIVE**: el trabajo se guarda en tu Drive (`voley/resultados`) minuto a minuto. Si la sesión se
   corta, al repetir la celda sigue donde se quedó. También guarda allí la calibración del campo.
-- Con CADA = 2, en una T4 tarda unos 30-40 min para 14 min de vídeo. Sin GPU no es viable (muchas horas).""")
+- Con CADA = 2, en una T4 tarda unos 30-40 min para 14 min de vídeo. Sin GPU no es viable (muchas horas).
+- **Repetir el análisis** (p. ej. tras mejorar las reglas) no necesita GPU ni el vídeo: basta con las celdas 1 y 9
+  y GUARDAR_EN_DRIVE marcado; usa lo detectado que hay en tu Drive y tarda un par de minutos.""")
 
 code("""#@title 9. Puntos: solo vídeo frente a tus etiquetas
 ETIQUETAS = ''  #@param {type:"string"}
@@ -240,7 +242,10 @@ CADA = 2  #@param {type:"integer"}
 MOSAICOS = '3x2'  #@param ["1x1", "2x1", "3x2", "4x3"]
 GUARDAR_EN_DRIVE = True  #@param {type:"boolean"}
 
-import shutil
+import os, shutil
+VIDEO = globals().get('VIDEO', '/content/partido.mov')  # sin la celda 2 se reanaliza lo ya detectado
+CARPETA = globals().get('CARPETA', '/content/resultados')
+os.makedirs(CARPETA, exist_ok=True)
 SALIDA = CARPETA
 if GUARDAR_EN_DRIVE:
     from google.colab import drive
@@ -257,7 +262,7 @@ else:
     raise SystemExit('Falta calibrar el campo: ejecuta la celda 3 y marca puntos hasta pulsar «Listo».')
 import torch
 if not torch.cuda.is_available():
-    print('AVISO: sin GPU esto tarda muchas horas. Mejor espera a tener GPU (Entorno de ejecución → Cambiar tipo → T4).')
+    print('Sin GPU: vale para reanalizar lo ya detectado; detectar de cero tardaría muchas horas.')
 from voley_cv.pipeline import rallies_vs_labels
 if not ETIQUETAS:
     from google.colab import files as colab_files

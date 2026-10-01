@@ -89,6 +89,21 @@ def detect_chunked(video, folder, start=0.0, end=None, stride=2, model="small", 
 
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
+    if not Path(video).exists():
+        # Sin el vídeo (sesión nueva sin descargarlo) se puede reanalizar con los trozos ya detectados.
+        parts = sorted(folder.glob("parte_*.jsonl"))
+        if not parts:
+            raise FileNotFoundError(f"Falta el vídeo ({video}): ejecuta la celda 2.")
+        print(f"Sin vídeo: uso los {len(parts)} trozos ya detectados de {folder}")
+        header, frames, secs = None, [], 0.0
+        for part in parts:
+            h, fr = load_detections(part)
+            header = header or dict(h)
+            frames.extend(fr)
+            secs += h.get("processing_seconds") or 0.0
+        header["end_frame"] = frames[-1]["f"] + 1 if frames else header["end_frame"]
+        header["processing_seconds"] = round(secs, 1)
+        return header, frames
     info = video_info(video)
     end = info["duration"] if end is None else min(end, info["duration"])
     n = max(1, math.ceil((end - start) / chunk))

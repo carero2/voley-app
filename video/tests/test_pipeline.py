@@ -53,6 +53,10 @@ def test_detect_chunked_resumes():
         assert FakeDetector.calls == 30, FakeDetector.calls  # no repite los trozos hechos
         assert [f["f"] for f in frames] == list(range(50))
         assert header["end_frame"] == 50
+        # Sesión nueva sin el vídeo: se reanaliza con los trozos ya guardados.
+        FakeDetector.calls = 0
+        _, again = pipeline.detect_chunked(os.path.join(tmp, "no_esta.mp4"), folder, stride=1, chunk=1.0)
+        assert FakeDetector.calls == 0 and [f["f"] for f in again] == list(range(50))
 
 
 if __name__ == "__main__":
