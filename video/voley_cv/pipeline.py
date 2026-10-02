@@ -171,3 +171,40 @@ def evaluate_folder(folder):
     app = with_app(analysis, pred, labels)
     return analysis, pred, cmp, (summary_text(analysis) + "\n\n" + comparison_text(cmp) + "\n\n"
                                  + with_app_text(app))
+
+
+QUALITY = {"media": (1280, 28), "media-baja": (960, 30), "baja": (640, 32)}  # ancho máximo (px), crf
+
+
+def annotated_video(video, detections, court_path, out_path, labels_path=None, quality="media-baja"):
+    """Vídeo entero con jugadores, balón, toques y minimapa, a partir de detecciones ya hechas (no hace falta
+    GPU). `detections`: archivo .jsonl[.gz] o carpeta con los trozos parte_*.jsonl. Con `labels_path`
+    (etiquetas de la herramienta) añade el rótulo del punto y el marcador."""
+    import os
+
+    det = Path(detections)
+    if det.is_dir():
+        parts = sorted(det.glob("parte_*.jsonl"))
+        if not parts:
+            raise FileNotFoundError(f"No hay trozos parte_*.jsonl en {det}")
+        header, frames = None, []
+        for part in parts:
+            h, fr = load_detections(part)
+            header = header or dict(h)
+            frames.extend(fr)
+    else:
+        header, frames = load_detections(det)
+    info = video_info(video)
+    if abs(info["fps"] - header["fps"]) > 1 or info["frames"] < frames[-1]["f"]:
+        print(f"Ojo: el vídeo ({info['fps']:.0f} fps, {info['frames']} fotogramas) no parece el de las detecciones "
+              f"({header['fps']:.0f} fps, hasta el fotograma {frames[-1]['f']}).")
+    court = Court.load(court_path)
+    analysis = analyze(header, frames, court)
+    points = load_rallies(labels_path) if labels_path else None
+    width, crf = QUALITY[quality]
+    out = render(video, analysis, court, out_path, max_width=width, crf=crf, points=points,
+                 progress=True, static=False)
+    if out != str(out_path) and os.path.exists(out):
+        os.replace(out, out_path)  # el mp4 intermedio (sin comprimir bien) no hace falta
+        out = str(out_path)
+    return out

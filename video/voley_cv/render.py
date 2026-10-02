@@ -16,8 +16,11 @@ BALL = (0, 255, 255)
 TOUCH = (60, 60, 255)
 
 
-def render(video_path, analysis: dict, court: Court, out_path, minimap=True, trail=20, max_width=1280):
-    """Dibuja el análisis sobre el vídeo. `max_width` reduce el tamaño para verlo cómodo en el navegador."""
+def render(video_path, analysis: dict, court: Court, out_path, minimap=True, trail=20, max_width=1280, crf=23,
+           points=None, progress=False, static=True):
+    """Dibuja el análisis sobre el vídeo. `max_width` reduce el tamaño para verlo cómodo en el navegador y `crf`
+    la calidad (más alto = archivo más pequeño). `points` (etiquetas o app: start, end, winner, how) añade un
+    rótulo con el punto y el marcador."""
     header = analysis["header"]
     frames = analysis["frames"]
     by_f = {fr["f"]: fr for fr in frames}
@@ -32,13 +35,16 @@ def render(video_path, analysis: dict, court: Court, out_path, minimap=True, tra
     history = []  # últimas posiciones del balón
     recent_touches = []  # toques del punto en curso (para el minimapa)
     flash = {}  # toques recién ocurridos: se resaltan unos fotogramas
+    total = len(frames)
     with video_writer(out_path, fps, size) as writer:
-        for f, frame in iter_frames(video_path, first, last, stride):
+        for n_done, (f, frame) in enumerate(iter_frames(video_path, first, last, stride)):
+            if progress and n_done % 1800 == 0:
+                print(f"  {n_done / total:.0%} ({fr_time(n_done, fps)} de vídeo)", flush=True)
             fr = by_f.get(f)
             if fr is None:
                 continue
             _draw_players(frame, fr)
-            for u, v in analysis.get("static_spots", []):  # falsos balones ignorados
+            for u, v in analysis.get("static_spots", []) if static else []:  # falsos balones ignorados
                 cv2.drawMarker(frame, (int(u), int(v)), (140, 140, 140), cv2.MARKER_TILTED_CROSS, 14, 1, cv2.LINE_AA)
             b = fr["ball"]
             history.append((int(b["u"]), int(b["v"])) if b else None)
@@ -61,8 +67,46 @@ def render(video_path, analysis: dict, court: Court, out_path, minimap=True, tra
             if minimap:
                 _draw_minimap(frame, fr, recent_touches[-8:])
             cv2.putText(frame, f"{fr['t']:.2f}s  f{f}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-            writer.write(cv2.resize(frame, size) if scale < 1 else frame)
-    return to_h264(out_path)
+            if points:
+                _draw_banner(frame, fr["t"], points)
+            writer.write(cv2.resize(frame, size, interpolation=cv2.INTER_AREA) if scale < 1 else frame)
+    return to_h264(out_path, crf)
+
+
+def fr_time(n, fps):
+    s = int(n / fps)
+    return f"{s // 60}:{s % 60:02d}"
+
+
+HOW = {"ace": "Ace", "ataque": "Ataque", "bloqueo": "Bloqueo", "error_saque": "Error de saque", "error": "Error del rival",
+       "error_ataque": "Error del rival", "error_recepcion": "Error del rival", "error_otro": "Error del rival"}
+
+
+def _draw_banner(frame, t, points, show_after=3.0):
+    """Rótulo abajo a la izquierda: «Punto n» mientras se juega y «Gana A · Ataque» al acabar, con el marcador."""
+    a = b = 0
+    text = None
+    for n, p in enumerate(points, 1):
+        if t < p["start"]:
+            break
+        if t <= p["end"]:
+            text = f"Punto {n}"
+            break
+        a += p["winner"] == "A"
+        b += p["winner"] == "B"
+        if t <= p["end"] + show_after:
+            how = HOW.get(p.get("how"), "")
+            text = f"Gana {p['winner'] or '?'}" + (f" - {how}" if how else "")
+            break
+    H = frame.shape[0]
+    score = f"A {a} - {b} B"
+    lines = [score] + ([text] if text else [])
+    y = H - 30 - 50 * (len(lines) - 1)
+    for line in lines:
+        (w, h), _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 1.4, 3)
+        cv2.rectangle(frame, (14, y - h - 14), (34 + w, y + 14), (25, 25, 25), -1)
+        cv2.putText(frame, line, (24, y), cv2.FONT_HERSHEY_SIMPLEX, 1.4, (255, 255, 255), 3, cv2.LINE_AA)
+        y += 50
 
 
 def _draw_players(frame, fr):
@@ -108,13 +152,13 @@ def _draw_minimap(frame, fr, touches, scale=22, margin=20):
         cv2.circle(frame, p, 4, TOUCH, -1, cv2.LINE_AA)
 
 
-def to_h264(path):
-    """Convierte a H.264 (se ve en el navegador y en Colab) si hay ffmpeg; si no, deja el mp4 tal cual."""
+def to_h264(path, crf=23):
+    """Convierte a H.264 (se ve en el navegador, en Colab y en el móvil) si hay ffmpeg; si no, deja el mp4 tal cual."""
     if not shutil.which("ffmpeg"):
         return str(path)
     out = str(path).replace(".mp4", "_h264.mp4")
     r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(path), "-c:v", "libx264", "-preset", "veryfast",
-                        "-crf", "23", "-pix_fmt", "yuv420p", out])
+                        "-crf", str(crf), "-pix_fmt", "yuv420p", "-movflags", "+faststart", out])
     return out if r.returncode == 0 else str(path)
 
 

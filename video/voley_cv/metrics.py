@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from . import provisional
 from .rallies import OTHER, norm_how, with_app
 
 TEAMS = ("A", "B")
@@ -90,11 +91,16 @@ def _score_line(rows):
 
 
 def match_report(analysis: dict, pred: list, app_points: list, comparison: dict) -> dict:
-    """Todo junto: métricas solo vídeo, métricas vídeo + app y la fiabilidad del vídeo frente a la app."""
+    """Todo junto: métricas solo vídeo, métricas vídeo + app, la fiabilidad del vídeo frente a la app y las
+    métricas provisionales (alturas, recepción…)."""
+    rows = points_with_app(analysis, pred, app_points)
+    details = provisional.rally_details(analysis, rows)
     return {
         "solo_video": team_metrics(points_video_only(analysis, pred)),
-        "video_app": team_metrics(points_with_app(analysis, pred, app_points)),
+        "video_app": team_metrics(rows),
         "fiabilidad_video": {k: comparison.get(k) for k in (
             "labels", "found", "extra_video", "server_pct", "winner_pct", "how_pct", "how_group_pct", "how_both_pct")},
-        "puntos": points_with_app(analysis, pred, app_points),
+        "puntos": rows,
+        # Alturas, calidad de la recepción, velocidad del saque…: muy aproximadas (ver provisional.py).
+        "provisional": {"equipos": provisional.summary(details), "puntos": details},
     }

@@ -276,6 +276,52 @@ c, r = map(int, MOSAICOS.split('x'))
 puntos, comparacion, texto = rallies_vs_labels(VIDEO, CAMPO, SALIDA, ETIQUETAS, CADA, MODELO, PESOS or None, (c, r))
 print(texto)""")
 
+md("""## Vídeo anotado completo (para enseñarlo)
+El partido entero con los jugadores (azul = campo izquierdo A, naranja = derecho B), el balón con su estela, los
+toques, el minimapa y un rótulo con el punto y el marcador. **No hace falta GPU** ni volver a detectar: usa las
+detecciones guardadas.
+
+1. Celda 1 (sin GPU vale) y celda 2 con el enlace de OneDrive del vídeo.
+2. Esta celda. **Partido de prueba del 29/9**: deja DETECCIONES vacío y usa lo que hay en el repositorio
+   (`video/datos/2026-09-29_A001_C004`). Para otro partido, pon la carpeta de detecciones de la celda 9.
+3. Tarda unos 15-30 min para 14 min de vídeo. Con GUARDAR_EN_DRIVE se guarda en `voley/` de tu Google Drive:
+   desde ahí se comparte con un enlace y se ve en el móvil. Si no, se descarga.
+
+Calidad: **media-baja** (960 px, unos 100-150 MB para 14 min), **baja** (640 px, la mitad), **media** (1280 px).""")
+
+code("""#@title 10. Vídeo anotado completo
+CALIDAD = 'media-baja'  #@param ["media", "media-baja", "baja"]
+DETECCIONES = ''  #@param {type:"string"}
+CON_MARCADOR = True  #@param {type:"boolean"}
+GUARDAR_EN_DRIVE = True  #@param {type:"boolean"}
+
+import os
+from voley_cv.pipeline import annotated_video
+DATOS = '/content/voley-app/video/datos/2026-09-29_A001_C004'
+if DETECCIONES:
+    CAMPO = globals().get('CAMPO') or f'{CARPETA}/campo.json'
+    ETIQ = globals().get('ETIQUETAS') or None
+else:
+    DETECCIONES = f'{DATOS}/detecciones_small-propio_cada2.jsonl.gz'
+    CAMPO, ETIQ = f'{DATOS}/campo.json', f'{DATOS}/etiquetas.json'
+if not os.path.exists(globals().get('VIDEO', '')):
+    raise SystemExit('Falta el vídeo: ejecuta la celda 2 con el enlace de OneDrive.')
+destino = '/content/voley_anotado.mp4'
+if GUARDAR_EN_DRIVE:
+    from google.colab import drive
+    drive.mount('/content/drive')
+    os.makedirs('/content/drive/MyDrive/voley', exist_ok=True)
+print('Dibujando… (se ve el avance cada minuto de vídeo)')
+salida = annotated_video(VIDEO, DETECCIONES, CAMPO, destino, ETIQ if CON_MARCADOR else None, CALIDAD)
+print(f'{os.path.getsize(salida) / 1e6:.0f} MB')
+if GUARDAR_EN_DRIVE:
+    import shutil
+    final = shutil.copy(salida, '/content/drive/MyDrive/voley/voley_anotado.mp4')
+    print('Guardado en tu Drive:', final, '→ clic derecho → Compartir → Copiar enlace')
+else:
+    from google.colab import files as colab_files
+    colab_files.download(salida)""")
+
 code("""#@title 8. Descargar los resultados (.zip)
 import shutil
 from google.colab import files as colab_files
