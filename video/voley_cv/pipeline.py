@@ -173,7 +173,7 @@ def evaluate_folder(folder):
                                  + with_app_text(app))
 
 
-QUALITY = {"media": (1280, 28), "media-baja": (960, 30), "baja": (640, 32)}  # ancho máximo (px), crf
+QUALITY = {"alta": (1920, 26), "media": (1280, 28), "media-baja": (960, 30), "baja": (640, 32)}  # ancho máximo (px), crf
 
 
 def annotated_video(video, detections, court_path, out_path, labels_path=None, quality="media-baja"):

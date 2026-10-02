@@ -287,10 +287,13 @@ detecciones guardadas.
 3. Tarda unos 15-30 min para 14 min de vídeo. Con GUARDAR_EN_DRIVE se guarda en `voley/` de tu Google Drive:
    desde ahí se comparte con un enlace y se ve en el móvil. Si no, se descarga.
 
-Calidad: **media-baja** (960 px, unos 100-150 MB para 14 min), **baja** (640 px, la mitad), **media** (1280 px).""")
+Calidad (para 14 min, aproximado): **alta** 1080p (1920 px, 400-700 MB), **media** 720p (1280 px, 200-300 MB),
+**media-baja** 540p (960 px, 100-150 MB), **baja** 360p (640 px, la mitad).
+Google Drive, al abrir el vídeo recién subido, lo enseña un rato a 360p mientras lo procesa: espera unos minutos
+o descárgalo para verlo con su calidad real.""")
 
 code("""#@title 10. Vídeo anotado completo
-CALIDAD = 'media-baja'  #@param ["media", "media-baja", "baja"]
+CALIDAD = 'media'  #@param ["alta", "media", "media-baja", "baja"]
 DETECCIONES = ''  #@param {type:"string"}
 CON_MARCADOR = True  #@param {type:"boolean"}
 GUARDAR_EN_DRIVE = True  #@param {type:"boolean"}
